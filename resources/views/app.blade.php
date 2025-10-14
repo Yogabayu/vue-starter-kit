@@ -4,6 +4,30 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
+        {{-- SEO Meta Tags --}}
+        <meta name="description" content="{{ $metaDescription ?? 'Explore Ponorogo - Discover amazing places and experiences' }}">
+        <meta name="keywords" content="{{ $metaKeywords ?? 'explore, ponorogo, travel, tourism, destinations' }}">
+        <meta name="author" content="yogadev">
+        <meta name="robots" content="index, follow">
+        <link rel="canonical" href="{{ url()->current() }}">
+
+        {{-- Open Graph Meta Tags --}}
+        <meta property="og:title" content="{{ $ogTitle ?? config('app.name', 'Laravel') }}">
+        <meta property="og:description" content="{{ $ogDescription ?? $metaDescription ?? 'Explore Ponorogo - Discover amazing places and experiences' }}">
+        <meta property="og:image" content="{{ $ogImage ?? asset('exploreponorogo.png') }}">
+        <meta property="og:url" content="{{ url()->current() }}">
+        <meta property="og:type" content="{{ $ogType ?? 'website' }}">
+        <meta property="og:site_name" content="exploreponorogo.com">
+
+        {{-- Twitter Card Meta Tags --}}
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ $twitterTitle ?? $ogTitle ?? config('app.name', 'Laravel') }}">
+        <meta name="twitter:description" content="{{ $twitterDescription ?? $ogDescription ?? $metaDescription ?? 'Explore Ponorogo - Discover amazing places and experiences' }}">
+        <meta name="twitter:image" content="{{ $twitterImage ?? $ogImage ?? asset('exploreponorogo.png') }}">
+
+        <link rel="icon" type="image/x-icon" href="{{ asset('exploreponorogo.ico') }}">
+        <link rel="apple-touch-icon" href="{{ asset('exploreponorogo.png') }}">
+        <title>exploreponorogo.com</title>
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
