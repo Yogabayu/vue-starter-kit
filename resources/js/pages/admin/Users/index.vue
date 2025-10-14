@@ -7,12 +7,13 @@ import { computed, ref } from 'vue';
 
 // shadcn-vue primitives
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import {
     Table,
     TableBody,
@@ -23,8 +24,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { router } from '@inertiajs/vue3';
-import { MoreHorizontal } from 'lucide-vue-next';
+import { MoreHorizontal } from 'lucide-vue-next'
 
 type UserRow = { id: number; name: string; email: string; created_at: string };
 
@@ -83,59 +83,77 @@ function setSort(key: keyof UserRow) {
         sortDir.value = 'asc';
     }
 }
+
 function editUser(id: number) {
-    router.visit(`/users/${id}/edit`);
+    console.log('edit user', id);
 }
 
 function deleteUser(id: number) {
-    if (confirm('Are you sure want to delete this user?')) {
-        router.delete(`/users/${id}`, {
-            preserveScroll: true,
-            onSuccess: () => alert('User deleted successfully'),
-        });
-    }
+    console.log('delete user', id);
 }
 </script>
 
 <template>
-
     <Head title="User" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="text-xl font-semibold">User List</h2>
                 <div class="ml-auto w-full max-w-xs">
-                    <Input v-model="q" placeholder="Search users…"
-                        class="px-3 py-2 h-10 rounded-md text-sm bg-background text-foreground border border-input focus-visible:ring-2 focus-visible:ring-primary" />
-
+                    <Input v-model="q" placeholder="Search users…" />
                 </div>
             </div>
 
-            <div class="rounded-xl border border-sidebar-border/70 p-2 dark:border-sidebar-border">
+            <div
+                class="rounded-xl border border-sidebar-border/70 p-2 dark:border-sidebar-border"
+            >
                 <Table>
                     <TableCaption>Total: {{ total }}</TableCaption>
 
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="cursor-pointer select-none" @click="setSort('id')">
+                            <TableHead
+                                class="cursor-pointer select-none"
+                                @click="setSort('id')"
+                            >
                                 ID
-                                <span v-if="sortKey === 'id'">({{ sortDir }})</span>
+                                <span v-if="sortKey === 'id'"
+                                    >({{ sortDir }})</span
+                                >
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none" @click="setSort('name')">
+                            <TableHead
+                                class="cursor-pointer select-none"
+                                @click="setSort('name')"
+                            >
                                 Name
-                                <span v-if="sortKey === 'name'">({{ sortDir }})</span>
+                                <span v-if="sortKey === 'name'"
+                                    >({{ sortDir }})</span
+                                >
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none" @click="setSort('email')">
+                            <TableHead
+                                class="cursor-pointer select-none"
+                                @click="setSort('email')"
+                            >
                                 Email
-                                <span v-if="sortKey === 'email'">({{ sortDir }})</span>
+                                <span v-if="sortKey === 'email'"
+                                    >({{ sortDir }})</span
+                                >
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none" @click="setSort('created_at')">
+                            <TableHead
+                                class="cursor-pointer select-none"
+                                @click="setSort('created_at')"
+                            >
                                 Created At
-                                <span v-if="sortKey === 'created_at'">({{ sortDir }})</span>
+                                <span v-if="sortKey === 'created_at'"
+                                    >({{ sortDir }})</span
+                                >
                             </TableHead>
-                            <!-- 🆕 Kolom aksi -->
-                            <TableHead class="text-right">Actions</TableHead>
+                            <TableHead class="text-right">
+                                Action
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
 
@@ -146,9 +164,7 @@ function deleteUser(id: number) {
                             <TableCell>{{ u.email }}</TableCell>
                             <TableCell>{{
                                 new Date(u.created_at).toLocaleDateString()
-                                }}</TableCell>
-
-                            <!-- 🆕 Kolom Actions -->
+                            }}</TableCell>
                             <TableCell class="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger as-child>
@@ -157,10 +173,14 @@ function deleteUser(id: number) {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem @click="editUser(u.id)">
+                                        <DropdownMenuItem
+                                            @click="editUser(u.id)"
+                                        >
                                             ✏️ Edit
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem @click="deleteUser(u.id)">
+                                        <DropdownMenuItem
+                                            @click="deleteUser(u.id)"
+                                        >
                                             🗑️ Delete
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
@@ -169,7 +189,10 @@ function deleteUser(id: number) {
                         </TableRow>
 
                         <TableRow v-if="rows.length === 0">
-                            <TableCell colspan="5" class="text-center text-muted-foreground">
+                            <TableCell
+                                colspan="4"
+                                class="text-center text-muted-foreground"
+                            >
                                 No data
                             </TableCell>
                         </TableRow>
@@ -178,16 +201,29 @@ function deleteUser(id: number) {
                     <TableFooter>
                         <TableRow>
                             <TableCell colspan="5">
-                                <div class="flex items-center justify-between gap-3">
+                                <div
+                                    class="flex items-center justify-between gap-3"
+                                >
                                     <div class="text-sm text-muted-foreground">
                                         Page {{ page }} / {{ lastPage }}
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <Button variant="outline" :disabled="page <= 1" @click="page--">Prev</Button>
-                                        <Button variant="outline" :disabled="page >= lastPage"
-                                            @click="page++">Next</Button>
-                                        <select v-model.number="perPage"
-                                            class="rounded-md border bg-background px-2 py-1 text-foreground dark:bg-muted dark:text-foreground">
+                                        <Button
+                                            variant="outline"
+                                            :disabled="page <= 1"
+                                            @click="page--"
+                                            >Prev</Button
+                                        >
+                                        <Button
+                                            variant="outline"
+                                            :disabled="page >= lastPage"
+                                            @click="page++"
+                                            >Next</Button
+                                        >
+                                        <select
+                                            v-model.number="perPage"
+                                            class="rounded-md border bg-background px-2 py-1 text-foreground dark:bg-muted dark:text-foreground"
+                                        >
                                             <option :value="5">5</option>
                                             <option :value="10">10</option>
                                             <option :value="25">25</option>
