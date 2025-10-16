@@ -18,4 +18,22 @@ class UserController extends Controller
             'users' => $users,
         ]);
     }
+
+    public function update(Request $request, User $user): \Illuminate\Http\RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:8|confirmed',
+        ]);
+
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
+        if (!empty($validated['password'])) {
+            $user->password = bcrypt($validated['password']);
+        }
+        $user->save();
+
+        return redirect()->route('usersIndex')->with('success', 'User updated successfully.');
+    }
 }

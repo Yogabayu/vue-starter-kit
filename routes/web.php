@@ -14,6 +14,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('admin/Dashboard');
     })->name('dashboard');
     Route::get('/users', [UserController::class, 'index'])->name('usersIndex');
+    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
 });
 
 require __DIR__ . '/settings.php';

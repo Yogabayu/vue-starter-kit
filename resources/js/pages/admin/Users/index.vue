@@ -4,16 +4,25 @@ import { usersIndex } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 
 // shadcn-vue primitives
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
     Table,
     TableBody,
@@ -24,7 +33,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { MoreHorizontal } from 'lucide-vue-next'
+import { useForm } from '@inertiajs/vue3';
+import { MoreHorizontal } from 'lucide-vue-next';
+import { route } from 'ziggy-js';
 
 type UserRow = { id: number; name: string; email: string; created_at: string };
 
@@ -39,6 +50,15 @@ const sortKey = ref<keyof UserRow>('id');
 const sortDir = ref<'asc' | 'desc'>('asc');
 const page = ref(1);
 const perPage = ref(10);
+const isEditOpen = ref(false);
+const isDeleteOpen = ref(false);
+
+const formUser = useForm({
+    id: null,
+    name: '',
+    email: '',
+    password: '',
+});
 
 // filter
 const filtered = computed(() => {
@@ -84,13 +104,37 @@ function setSort(key: keyof UserRow) {
     }
 }
 
-function editUser(id: number) {
-    console.log('edit user', id);
+function editUser(user: any) {
+    formUser.id = user.id;
+    formUser.name = user.name;
+    formUser.email = user.email;
+    isEditOpen.value = true;
 }
 
-function deleteUser(id: number) {
-    console.log('delete user', id);
+function updateUser() {
+    if (!formUser.id) return;
+    
+    formUser.put(route('users.update', { id: formUser.id }), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isEditOpen.value = false;
+            toast.success('User updated successfully!');
+        },
+        onError: (errors) => {
+            console.error(errors);
+            toast.error('Failed to update user');
+        },
+    });
 }
+
+const openDeleteDialog = () => {
+    isDeleteOpen.value = true;
+};
+
+const confirmDelete = () => {
+    isDeleteOpen.value = false;
+    toast.success('User deleted');
+};
 </script>
 
 <template>
@@ -151,9 +195,7 @@ function deleteUser(id: number) {
                                     >({{ sortDir }})</span
                                 >
                             </TableHead>
-                            <TableHead class="text-right">
-                                Action
-                            </TableHead>
+                            <TableHead class="text-right"> Action </TableHead>
                         </TableRow>
                     </TableHeader>
 
@@ -173,13 +215,11 @@ function deleteUser(id: number) {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem
-                                            @click="editUser(u.id)"
-                                        >
+                                        <DropdownMenuItem @click="editUser(u)">
                                             ✏️ Edit
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
-                                            @click="deleteUser(u.id)"
+                                            @click="openDeleteDialog()"
                                         >
                                             🗑️ Delete
                                         </DropdownMenuItem>
@@ -236,5 +276,80 @@ function deleteUser(id: number) {
                 </Table>
             </div>
         </div>
+
+        <Dialog v-model:open="isDeleteOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Hapus User?</DialogTitle>
+                    <DialogDescription>
+                        Tindakan ini tidak dapat dibatalkan. Apakah kamu yakin
+                        ingin menghapus user ini?
+                    </DialogDescription>
+                </DialogHeader>
+
+                <DialogFooter>
+                    <Button variant="outline" @click="isDeleteOpen = false"
+                        >Batal</Button
+                    >
+                    <Button variant="destructive" @click="confirmDelete"
+                        >Hapus</Button
+                    >
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog v-model:open="isEditOpen">
+            <DialogContent class="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Edit User</DialogTitle>
+                    <DialogDescription>
+                        Form untuk mengedit informasi user.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form>
+                    <div class="grid gap-4 py-4">
+                        <div class="grid gap-2">
+                            <label for="name" class="font-medium">Name</label>
+                            <Input
+                                id="name"
+                                v-model="formUser.name"
+                                type="text"
+                                placeholder="Name"
+                            />
+                        </div>
+                        <div class="grid gap-2">
+                            <label for="email" class="font-medium">Email</label>
+                            <Input
+                                id="email"
+                                v-model="formUser.email"
+                                type="email"
+                                placeholder="Email"
+                            />
+                        </div>
+                        <div class="grid gap-2">
+                            <label for="password" class="font-medium"
+                                >Password</label
+                            >
+                            <Input
+                                id="password"
+                                v-model="formUser.password"
+                                type="password"
+                                placeholder="leave blank to keep current password"
+                            />
+                        </div>
+                    </div>
+                </form>
+
+                <DialogFooter>
+                    <Button variant="outline" @click="isEditOpen = false"
+                        >Cancel</Button
+                    >
+                    <Button type="submit" @click="updateUser()"
+                        >Save</Button
+                    >
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
