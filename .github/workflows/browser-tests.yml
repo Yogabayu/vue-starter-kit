@@ -21,9 +21,15 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.4
+          php-version: '8.2'
           tools: composer:v2
-          coverage: xdebug
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -47,7 +53,10 @@ jobs:
           composer require "laravel-labs/starter-kit-browser-tests:dev-main@dev" --dev --no-update
 
       - name: Install Dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        shell: bash
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader \
+          || composer update --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
       - name: Copy Environment File
         run: cp .env.example .env

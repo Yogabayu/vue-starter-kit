@@ -1,0 +1,41 @@
+name: Test Laravel Inertia
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: sqlite3, zip, bcmath, gd
+
+      - name: Cache Composer deps
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install Composer deps
+        run: composer install --no-ansi --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare .env and key
+        shell: bash
+        run: |
+          if [ -f .env.example ]; then cp .env.example .env; fi
+          php artisan key:generate --ansi --force
+
+      - name: Run Feature tests (Inertia)
+        run: php artisan test --testsuite=Feature --no-ansi
+
