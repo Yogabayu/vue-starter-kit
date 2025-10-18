@@ -46,6 +46,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 // state
 const q = ref('');
+const type = ref(0);
 const sortKey = ref<keyof UserRow>('id');
 const sortDir = ref<'asc' | 'desc'>('asc');
 const page = ref(1);
@@ -104,7 +105,8 @@ function setSort(key: keyof UserRow) {
     }
 }
 
-function editUser(user: any) {
+function editUser(user: any, userType: number) {
+    type.value = userType;
     formUser.id = user.id;
     formUser.name = user.name;
     formUser.email = user.email;
@@ -112,8 +114,21 @@ function editUser(user: any) {
 }
 
 function updateUser() {
-    if (!formUser.id) return;
-    
+    if (!formUser.id && type.value == 1) {
+        formUser.post(route('users.create'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                isEditOpen.value = false;
+                toast.success('User created successfully!');
+            },
+            onError: (errors) => {
+                console.error(errors);
+                toast.error('Failed to create user');
+            },
+        });
+        formUser.reset();
+    }
+
     formUser.put(route('users.update', { id: formUser.id }), {
         preserveScroll: true,
         onSuccess: () => {
@@ -125,16 +140,30 @@ function updateUser() {
             toast.error('Failed to update user');
         },
     });
+    formUser.reset();
 }
 
-const openDeleteDialog = () => {
+const openDeleteDialog = (userId: any) => {
+    formUser.id = userId;
     isDeleteOpen.value = true;
 };
 
-const confirmDelete = () => {
-    isDeleteOpen.value = false;
-    toast.success('User deleted');
-};
+function confirmDelete() {
+    if (!formUser.id) return;
+    
+    formUser.delete(route('users.destroy', { id: formUser.id }), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isDeleteOpen.value = false;
+            toast.success('User deleted successfully!');
+        },
+        onError: (errors) => {
+            console.error(errors);
+            toast.error('Failed to delete user');
+        },
+    });
+    formUser.reset();
+}
 </script>
 
 <template>
@@ -146,6 +175,7 @@ const confirmDelete = () => {
         >
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="text-xl font-semibold">User List</h2>
+                <Button @click="editUser({}, 1)"> Add User</Button>
                 <div class="ml-auto w-full max-w-xs">
                     <Input v-model="q" placeholder="Search users…" />
                 </div>
@@ -215,11 +245,11 @@ const confirmDelete = () => {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem @click="editUser(u)">
+                                        <DropdownMenuItem @click="editUser(u,2)">
                                             ✏️ Edit
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
-                                            @click="openDeleteDialog()"
+                                            @click="openDeleteDialog(u.id)"
                                         >
                                             🗑️ Delete
                                         </DropdownMenuItem>

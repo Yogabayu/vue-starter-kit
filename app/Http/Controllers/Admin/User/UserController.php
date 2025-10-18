@@ -19,6 +19,23 @@ class UserController extends Controller
         ]);
     }
 
+    function create(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:8',
+        ]);
+
+        User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => bcrypt($validated['password']),
+        ]);
+
+        return redirect()->route('usersIndex')->with('success', 'User created successfully.');
+    }
+
     public function update(Request $request, User $user): \Illuminate\Http\RedirectResponse
     {
         $validated = $request->validate([
@@ -35,5 +52,11 @@ class UserController extends Controller
         $user->save();
 
         return redirect()->route('usersIndex')->with('success', 'User updated successfully.');
+    }
+
+    public function destroy(User $user): \Illuminate\Http\RedirectResponse
+    {
+        $user->delete();
+        return redirect()->route('usersIndex')->with('success', 'User deleted successfully.');
     }
 }
