@@ -12,10 +12,12 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard, usersIndex } from '@/routes';
+import { index as destinationsIndex } from '@/routes/destinations';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 // import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
-import { LayoutGrid,UserRoundCog } from 'lucide-vue-next';
+import { LayoutGrid, UserRoundCog, MapPin } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -25,11 +27,24 @@ const mainNavItems: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'User',
+        title: 'Destinations',
+        href: destinationsIndex(),
+        icon: MapPin,
+    },
+];
+
+const settingNavItems: NavItem[] = [
+    {
+        title: 'Users',
         href: usersIndex(),
         icon: UserRoundCog,
     },
 ];
+
+// Role-based visibility
+const page = usePage();
+const roleNames = computed<string[]>(() => page.props.auth?.user?.role_names ?? []);
+const isSuperAdmin = computed(() => roleNames.value.includes('super_admin'));
 
 // const footerNavItems: NavItem[] = [
 //     {
@@ -60,7 +75,8 @@ const mainNavItems: NavItem[] = [
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <NavMain title="Main" :items="mainNavItems" />
+            <NavMain v-if="isSuperAdmin" title="Settings" :items="settingNavItems" />
         </SidebarContent>
 
         <SidebarFooter>

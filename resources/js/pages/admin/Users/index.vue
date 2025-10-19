@@ -36,8 +36,19 @@ import {
 import { useForm } from '@inertiajs/vue3';
 import { MoreHorizontal } from 'lucide-vue-next';
 import { route } from 'ziggy-js';
+type Role = {
+    id: number;
+    name: string;
+    display_name?: string;
+};
 
-type UserRow = { id: number; name: string; email: string; created_at: string };
+type UserRow = {
+    id: number;
+    name: string;
+    email: string;
+    roles: Role[]; // ✅ array of Role, bukan string
+    created_at: string;
+};
 
 const props = defineProps<{ users: UserRow[] }>();
 const breadcrumbs: BreadcrumbItem[] = [
@@ -53,10 +64,12 @@ const page = ref(1);
 const perPage = ref(10);
 const isEditOpen = ref(false);
 const isDeleteOpen = ref(false);
+const roles = ref<{ id: number; name: string; display_name: string }[]>([]);
 
 const formUser = useForm({
     id: null,
     name: '',
+    role: [],
     email: '',
     password: '',
 });
@@ -106,11 +119,25 @@ function setSort(key: keyof UserRow) {
 }
 
 function editUser(user: any, userType: number) {
+    getRoles();
+    formUser.reset();
     type.value = userType;
     formUser.id = user.id;
     formUser.name = user.name;
     formUser.email = user.email;
+    formUser.role = user.roles && user.roles.length > 0 ? user.roles[0].id : null;
     isEditOpen.value = true;
+}
+
+async function getRoles() {
+    try {
+        const response = await fetch(route('users.getRoles'));
+        const data = await response.json();
+        roles.value = data;
+    } catch (error) {
+        console.error('Failed to fetch roles:', error);
+        toast.error('Failed to load roles');
+    }
 }
 
 function updateUser() {
@@ -150,7 +177,7 @@ const openDeleteDialog = (userId: any) => {
 
 function confirmDelete() {
     if (!formUser.id) return;
-    
+
     formUser.delete(route('users.destroy', { id: formUser.id }), {
         preserveScroll: true,
         onSuccess: () => {
@@ -175,7 +202,13 @@ function confirmDelete() {
         >
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="text-xl font-semibold">User List</h2>
-                <Button @click="editUser({}, 1)"> Add User</Button>
+                <Button
+                    size="sm"
+                    class="hover:cursor-pointer"
+                    @click="editUser({}, 1)"
+                >
+                    Add User</Button
+                >
                 <div class="ml-auto w-full max-w-xs">
                     <Input v-model="q" placeholder="Search users…" />
                 </div>
@@ -218,6 +251,15 @@ function confirmDelete() {
                             </TableHead>
                             <TableHead
                                 class="cursor-pointer select-none"
+                                @click="setSort('roles')"
+                            >
+                                Role
+                                <span v-if="sortKey === 'roles'"
+                                    >({{ sortDir }})</span
+                                >
+                            </TableHead>
+                            <TableHead
+                                class="cursor-pointer select-none"
                                 @click="setSort('created_at')"
                             >
                                 Created At
@@ -231,24 +273,56 @@ function confirmDelete() {
 
                     <TableBody>
                         <TableRow v-for="u in rows" :key="u.id">
-                            <TableCell>{{ u.id }}</TableCell>
+                            <TableCell>{{
+                                (page - 1) * perPage + rows.indexOf(u) + 1
+                            }}</TableCell>
                             <TableCell>{{ u.name }}</TableCell>
                             <TableCell>{{ u.email }}</TableCell>
+                            <TableCell>
+                                <div class="flex flex-wrap gap-1">
+                                    <Button
+                                        v-for="r in u.roles"
+                                        :key="r.id"
+                                        size="sm"
+                                        variant="outline"
+                                        class="rounded-full px-2 py-0.5 text-xs"
+                                        :class="{
+                                            'border-blue-500 text-blue-600':
+                                                r.name === 'super_admin',
+                                            'border-green-500 text-green-600':
+                                                r.name === 'admin_destinasi',
+                                            'border-gray-400 text-gray-200':
+                                                r.name === 'user',
+                                        }"
+                                    >
+                                        {{ r.display_name ?? r.name }}
+                                    </Button>
+                                </div>
+                            </TableCell>
+
                             <TableCell>{{
                                 new Date(u.created_at).toLocaleDateString()
                             }}</TableCell>
                             <TableCell class="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger as-child>
-                                        <Button variant="ghost" size="icon">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="hover:cursor-pointer"
+                                        >
                                             <MoreHorizontal class="h-4 w-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem @click="editUser(u,2)">
+                                        <DropdownMenuItem
+                                            class="hover:cursor-pointer"
+                                            @click="editUser(u, 2)"
+                                        >
                                             ✏️ Edit
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
+                                            class="hover:cursor-pointer"
                                             @click="openDeleteDialog(u.id)"
                                         >
                                             🗑️ Delete
@@ -260,7 +334,7 @@ function confirmDelete() {
 
                         <TableRow v-if="rows.length === 0">
                             <TableCell
-                                colspan="4"
+                                colspan="5"
                                 class="text-center text-muted-foreground"
                             >
                                 No data
@@ -270,7 +344,7 @@ function confirmDelete() {
 
                     <TableFooter>
                         <TableRow>
-                            <TableCell colspan="5">
+                            <TableCell colspan="6">
                                 <div
                                     class="flex items-center justify-between gap-3"
                                 >
@@ -318,10 +392,16 @@ function confirmDelete() {
                 </DialogHeader>
 
                 <DialogFooter>
-                    <Button variant="outline" @click="isDeleteOpen = false"
+                    <Button
+                        variant="outline"
+                        class="hover:cursor-pointer"
+                        @click="isDeleteOpen = false"
                         >Batal</Button
                     >
-                    <Button variant="destructive" @click="confirmDelete"
+                    <Button
+                        variant="destructive"
+                        class="hover:cursor-pointer"
+                        @click="confirmDelete"
                         >Hapus</Button
                     >
                 </DialogFooter>
@@ -331,14 +411,33 @@ function confirmDelete() {
         <Dialog v-model:open="isEditOpen">
             <DialogContent class="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Edit User</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle v-if="!formUser.id">Add User</DialogTitle>
+                    <DialogTitle v-else>Edit User</DialogTitle>
+                    <!-- <DialogDescription>
                         Form untuk mengedit informasi user.
-                    </DialogDescription>
+                    </DialogDescription> -->
                 </DialogHeader>
 
                 <form>
                     <div class="grid gap-4 py-4">
+                        <div class="grid gap-2">
+                            <label for="roles" class="font-medium">Roles</label>
+                            <div>
+                                <select
+                                    id="roles"
+                                    v-model="formUser.role"
+                                    class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
+                                >
+                                    <option
+                                        v-for="role in roles"
+                                        :key="role.id"
+                                        :value="role.id"
+                                    >
+                                        {{ role.display_name }}
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="grid gap-2">
                             <label for="name" class="font-medium">Name</label>
                             <Input
@@ -375,9 +474,7 @@ function confirmDelete() {
                     <Button variant="outline" @click="isEditOpen = false"
                         >Cancel</Button
                     >
-                    <Button type="submit" @click="updateUser()"
-                        >Save</Button
-                    >
+                    <Button type="submit" @click="updateUser()">Save</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
