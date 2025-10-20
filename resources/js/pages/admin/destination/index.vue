@@ -3,33 +3,15 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { index as destinationsIndex } from '@/routes/destinations';
 import type { BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
-import { BadgePlus, Check, Trash2, Upload, X } from 'lucide-vue-next';
+import { BadgePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
 // shadcn-vue primitives
 import { Button } from '@/components/ui/button';
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-} from '@/components/ui/command';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
+import DestinationDialog from './components/DestinationDialog.vue';
+
 import {
     Table,
     TableBody,
@@ -48,6 +30,17 @@ type ImageDestination = {
     caption: string;
     is_cover: boolean;
 };
+
+type PendingImage = {
+    kind: 'pending';
+    uid: string;
+    file: File;
+    preview_url: string;
+    caption: string;
+    is_cover: boolean;
+};
+
+type DisplayImage = PendingImage | ({ kind: 'persisted' } & ImageDestination);
 
 type DetailDestination = {
     id: number;
@@ -92,7 +85,11 @@ const isEditOpen = ref(false);
 const isUploading = ref(false);
 const categories = ref<Array<{ id: number; name: string }>>([]);
 const images = ref<ImageDestination[]>([]);
-const fileEl = ref<HTMLInputElement | null>(null);
+const pendingImages = ref<PendingImage[]>([]);
+const displayImages = computed<DisplayImage[]>(() => [
+    ...pendingImages.value,
+    ...images.value.map((i) => ({ kind: 'persisted' as const, ...i })),
+]);
 const selected: any = ref<DestinationRow | null>(null);
 
 const pageCtx = usePage();
@@ -118,15 +115,6 @@ const form = ref({
     } as any,
 });
 
-// derived: selected category objects
-const selectedCategories = computed(() => {
-    const map = new Map(categories.value.map((c) => [c.id, c] as const));
-    return form.value.categories.map((id) => map.get(id)).filter(Boolean) as {
-        id: number;
-        name: string;
-    }[];
-});
-
 function toggleCategory(id: number) {
     if (!form.value) return;
     const list = form.value.categories ?? [];
@@ -143,12 +131,6 @@ function removeCategory(id: number) {
         (x) => x !== id,
     );
 }
-
-const previewUrl = computed(() => {
-    if (!uploadFile.value) return '';
-    return window.URL.createObjectURL(uploadFile.value);
-});
-
 
 // const formUser = useForm({
 //     id: null,
@@ -167,8 +149,6 @@ const filteredDestinations = computed(() => {
         destination.name.toLowerCase().includes(query),
     );
 });
-const selectedCategoryIds = computed(() => form.value?.categories ?? []);
-
 // sort
 const sorted = computed(() => {
     const arr = [...filteredDestinations.value];
@@ -217,7 +197,6 @@ async function fetchCategories() {
             : Array.isArray(data)
               ? data
               : [];
-        console.log(categories.value);
     } catch (e) {
         console.error(e);
     }
@@ -230,6 +209,7 @@ async function fetchDestinationDetail(id: number) {
             { headers: { Accept: 'application/json' } },
         );
         const data = await res.json();
+        pendingImages.value = [];
         images.value = data?.images ?? [];
         if (Array.isArray(data?.categories)) {
             form.value.categories = data.categories.map((c: any) => c.id);
@@ -257,6 +237,7 @@ async function fetchDestinationDetail(id: number) {
 function openCreate() {
     selected.value = null;
     images.value = [];
+    pendingImages.value = [];
     form.value = {
         id: null,
         name: '',
@@ -299,30 +280,61 @@ async function saveDestination() {
             categories: form.value.categories,
             detail: form.value.detail,
         };
-        if (!form.value.id) {
-            const res = await fetch(route('destinations.store'), {
-                method: 'POST',
-                body: JSON.stringify(payload),
-            });
-            if (!res.ok) throw new Error('Failed to create');
-            toast.success('Destination created');
-        } else {
-            const res = await fetch(
-                route('destinations.update', { destination: form.value.id }),
-                {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                },
-            );
-            if (!res.ok) throw new Error('Failed to update');
-            toast.success('Destination updated');
-        }
-        isEditOpen.value = false;
-        window.location.reload();
+        console.log(payload);
+        
+        // if (!form.value.id) {
+        //     const res = await fetch(route('destinations.store'), {
+        //         method: 'POST',
+        //         body: JSON.stringify(payload),
+        //     });
+        // if (!res.ok) throw new Error('Failed to create');
+        // const created = await res.json();
+        // // ensure we have the new id for subsequent image upload
+        // form.value.id = created.id;
+        // toast.success('Destination created');
+        // } else {
+        //     const res = await fetch(
+        //         route('destinations.update', { destination: form.value.id }),
+        //         {
+        //             method: 'PUT',
+        //             headers: {
+        //                 'Content-Type': 'application/json',
+        //                 Accept: 'application/json',
+        //             },
+        //             body: JSON.stringify(payload),
+        //         },
+        //     );
+        //     if (!res.ok) throw new Error('Failed to update');
+        //     toast.success('Destination updated');
+        // }
+        // // Upload all staged pending images (if any)
+        // if (pendingImages.value.length && form.value.id) {
+        //     for (const p of [...pendingImages.value]) {
+        //         try {
+        //             isUploading.value = true;
+        //             const fd = new FormData();
+        //             fd.append('image', p.file);
+        //             if (p.caption) fd.append('caption', p.caption);
+        //             if (p.is_cover) fd.append('is_cover', '1');
+        //             const resUp = await fetch(
+        //                 route('destinations.images.store', { destination: form.value.id }),
+        //                 { method: 'POST', body: fd },
+        //             );
+        //             if (!resUp.ok) throw new Error('Failed to upload');
+        //             const data = await resUp.json();
+        //             images.value.unshift(data);
+        //         } catch (err) {
+        //             console.error(err);
+        //             toast.error('Upload failed');
+        //         } finally {
+        //             try { window.URL.revokeObjectURL(p.preview_url); } catch {}
+        //             isUploading.value = false;
+        //         }
+        //     }
+        //     pendingImages.value = [];
+        // }
+        // isEditOpen.value = false;
+        // window.location.reload();
     } catch (e) {
         console.error(e);
         toast.error((e as any).message || 'Failed to save');
@@ -347,12 +359,8 @@ async function removeDestination(id: number) {
 // image upload
 const uploadFile = ref<File | null>(null);
 const uploadCaption = ref('');
-const uploadIsCover = ref(false);
 
-// optional: agar URL dilepas dari memori saat file berubah
-watch(uploadFile, (newVal, oldVal) => {
-    if (oldVal) window.URL.revokeObjectURL(window.URL.createObjectURL(oldVal));
-});
+// uploadFile kept only for compatibility; pending items manage their own blob URLs
 
 function onFileChange(e: Event) {
     const input = e.target as HTMLInputElement | null;
@@ -360,7 +368,21 @@ function onFileChange(e: Event) {
         uploadFile.value = null;
         return;
     }
-    uploadFile.value = input.files[0];
+    const file = input.files[0];
+    const uid = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+    const preview = window.URL.createObjectURL(file);
+    pendingImages.value.push({
+        kind: 'pending',
+        uid,
+        file,
+        preview_url: preview,
+        caption: uploadCaption.value || '',
+        is_cover: false,
+    });
+    // clear single use fields
+    uploadFile.value = null;
+    uploadCaption.value = '';
+    if (input) input.value = '';
 }
 
 async function uploadImage() {
@@ -370,7 +392,6 @@ async function uploadImage() {
         const fd = new FormData();
         fd.append('image', uploadFile.value);
         if (uploadCaption.value) fd.append('caption', uploadCaption.value);
-        if (uploadIsCover.value) fd.append('is_cover', '1');
         const res = await fetch(
             route('destinations.images.store', { destination: form.value.id }),
             { method: 'POST', body: fd },
@@ -381,12 +402,33 @@ async function uploadImage() {
         toast.success('Image uploaded');
         uploadFile.value = null;
         uploadCaption.value = '';
-        uploadIsCover.value = false;
     } catch (e) {
         console.error(e);
         toast.error('Upload failed');
     } finally {
         isUploading.value = false;
+    }
+}
+
+async function setImageAsCover(imageId: number) {
+    if (!form.value.id) return;
+    try {
+        const res = await fetch(
+            route('destinations.images.cover', {
+                destination: form.value.id,
+                image: imageId,
+            }),
+            { method: 'PATCH', headers: { Accept: 'application/json' } },
+        );
+        if (!res.ok) throw new Error('Failed to set cover');
+        images.value = images.value.map((img) => ({
+            ...img,
+            is_cover: img.id === imageId,
+        }));
+        toast.success('Cover updated');
+    } catch (e) {
+        console.error(e);
+        toast.error('Failed to set cover');
     }
 }
 
@@ -407,6 +449,27 @@ async function deleteImage(imageId: number) {
         console.error(e);
         toast.error('Delete failed');
     }
+}
+
+function removeImage(item: DisplayImage) {
+    if (item.kind === 'pending') {
+        try { window.URL.revokeObjectURL(item.preview_url); } catch {}
+        pendingImages.value = pendingImages.value.filter((p) => p.uid !== item.uid);
+        return;
+    }
+    return deleteImage(item.id);
+}
+
+async function setCover(item: DisplayImage) {
+    if (item.kind === 'pending') {
+        pendingImages.value = pendingImages.value.map((p) => ({
+            ...p,
+            is_cover: p.uid === item.uid,
+        }));
+        return;
+    }
+    await setImageAsCover(item.id);
+    pendingImages.value = pendingImages.value.map((p) => ({ ...p, is_cover: false }));
 }
 
 onMounted(() => {
@@ -553,259 +616,20 @@ onMounted(() => {
         </div>
 
         <!-- Edit/Create Dialog -->
-        <Dialog v-model:open="isEditOpen">
-            <DialogContent
-                class="max-h-[100vh] overflow-hidden p-0 sm:max-w-3xl"
-            >
-                <DialogHeader class="px-6 pt-6 pb-3">
-                    <DialogTitle>{{
-                        form.id ? 'Edit Destination' : 'Add Destination'
-                    }}</DialogTitle>
-                    <DialogDescription
-                        >Kelola destinasi, kategori dan
-                        gambar</DialogDescription
-                    >
-                </DialogHeader>
-
-                <div class="max-h-[calc(85vh-120px)] overflow-y-auto px-6 pb-4">
-                    <div class="grid gap-6">
-                        <div class="grid gap-2">
-                            <label class="font-medium">Name</label>
-                            <Input
-                                v-model="form.name"
-                                placeholder="Destination name"
-                            />
-                        </div>
-                        <div class="grid gap-2">
-                            <label class="font-medium">Slug</label>
-                            <Input
-                                v-model="form.slug"
-                                placeholder="unique-slug"
-                            />
-                        </div>
-                        <div class="grid gap-2">
-                            <label class="font-medium">Categories</label>
-                            <Popover>
-                                <PopoverTrigger as-child>
-                                    <Button
-                                        variant="outline"
-                                        class="w-full justify-between"
-                                    >
-                                        <span v-if="selectedCategories.length">
-                                            {{
-                                                selectedCategories
-                                                    .map((c) => c.name)
-                                                    .join(', ')
-                                            }}
-                                        </span>
-                                        <span
-                                            v-else
-                                            class="text-muted-foreground"
-                                            >Select categories...</span
-                                        >
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent class="w-[300px] p-0">
-                                    <Command>
-                                        <CommandInput
-                                            placeholder="Search category..."
-                                        />
-                                        <CommandEmpty
-                                            >No category found.</CommandEmpty
-                                        >
-                                        <CommandGroup>
-                                            <CommandItem
-                                                v-for="c in categories"
-                                                :key="c.id"
-                                                class="flex items-center justify-between"
-                                                @select="toggleCategory(c.id)"
-                                            >
-                                                <span>{{ c.name }}</span>
-                                                <Check
-                                                    v-if="
-                                                        selectedCategoryIds.includes(
-                                                            c.id,
-                                                        )
-                                                    "
-                                                    class="h-4 w-4"
-                                                />
-                                            </CommandItem>
-                                        </CommandGroup>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                            <div
-                                v-if="selectedCategories.length"
-                                class="mt-2 flex flex-wrap gap-2"
-                            >
-                                <span
-                                    v-for="c in selectedCategories"
-                                    :key="c.id"
-                                    class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs"
-                                >
-                                    {{ c.name }}
-                                    <button
-                                        type="button"
-                                        @click="removeCategory(c.id)"
-                                        class="hover:text-destructive"
-                                    >
-                                        <X class="h-3 w-3" />
-                                    </button>
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2">
-                            <label class="font-medium">Description</label>
-                            <textarea
-                                v-model="form.detail.description"
-                                rows="4"
-                                class="min-h-24 w-full resize-y rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
-                            ></textarea>
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div class="grid gap-2">
-                                <label class="font-medium">Address</label>
-                                <Input v-model="form.detail.address" />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Village</label>
-                                <Input v-model="form.detail.village" />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">District</label>
-                                <Input v-model="form.detail.district" />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Ticket Price</label>
-                                <Input v-model="form.detail.ticket_price" />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Open Hours</label>
-                                <Input
-                                    v-model="form.detail.open_hours"
-                                    placeholder="08:00"
-                                />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Close Hours</label>
-                                <Input
-                                    v-model="form.detail.close_hours"
-                                    placeholder="17:00"
-                                />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Phone</label>
-                                <Input v-model="form.detail.phone" />
-                            </div>
-                            <div class="grid gap-2">
-                                <label class="font-medium">Status</label>
-                                <select
-                                    v-model="form.detail.status"
-                                    class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
-                                >
-                                    <option value="published">Published</option>
-                                    <option value="draft">Draft</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Images -->
-                        <div class="grid gap-3">
-                            <label class="font-medium">Images</label>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <input
-                                    ref="fileEl"
-                                    type="file"
-                                    class="hidden"
-                                    @change="onFileChange"
-                                />
-
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    @click="fileEl?.click()"
-                                    >Choose File</Button
-                                >
-                                <Input
-                                    v-model="uploadCaption"
-                                    placeholder="Caption (optional)"
-                                    class="w-[200px]"
-                                />
-                                <label
-                                    class="flex items-center gap-2 text-sm select-none"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        v-model="uploadIsCover"
-                                        class="rounded border-gray-300"
-                                    />
-                                    Cover
-                                </label>
-                                <Button
-                                    size="sm"
-                                    :disabled="isUploading || !uploadFile"
-                                    @click="uploadImage"
-                                >
-                                    <Upload class="mr-1 h-4 w-4" /> Upload
-                                </Button>
-                            </div>
-
-                            <div
-                                v-if="uploadFile"
-                                class="mt-2 flex items-center gap-2"
-                            >
-                                <img
-                                    :src="previewUrl"
-                                    alt="preview"
-                                    class="h-24 w-24 rounded-md border object-cover"
-                                />
-                                <span class="text-xs text-muted-foreground">{{
-                                    uploadFile?.name
-                                }}</span>
-                            </div>
-
-                            <div
-                                v-if="images.length"
-                                class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4"
-                            >
-                                <div
-                                    v-for="img in images"
-                                    :key="img.id"
-                                    class="group relative overflow-hidden rounded-lg border shadow-sm"
-                                >
-                                    <img
-                                        :src="img.image_url"
-                                        class="h-28 w-full object-cover transition group-hover:opacity-75"
-                                    />
-                                    <div
-                                        class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/50 px-2 py-1 text-xs text-white"
-                                    >
-                                        <span>{{
-                                            img.is_cover ? 'Cover' : img.caption
-                                        }}</span>
-                                        <button
-                                            @click.prevent="deleteImage(img.id)"
-                                            class="hover:text-destructive"
-                                        >
-                                            <Trash2 class="inline h-3 w-3" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <DialogFooter
-                    class="sticky bottom-0 border-t bg-background px-6 py-4"
-                >
-                    <Button variant="outline" @click="isEditOpen = false"
-                        >Cancel</Button
-                    >
-                    <Button @click="saveDestination">Save</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <DestinationDialog
+            v-model:open="isEditOpen"
+            v-model:uploadCaption="uploadCaption"
+            v-model:form="form"
+            :categories="categories"
+            :images="displayImages"
+            :isUploading="isUploading"
+            :uploadFile="uploadFile"
+            @save="saveDestination"
+            @file-change="onFileChange"
+            @delete-image="removeImage"
+            @set-cover="setCover"
+            @toggle-category="toggleCategory"
+            @remove-category="removeCategory"
+        />
     </AppLayout>
 </template>
