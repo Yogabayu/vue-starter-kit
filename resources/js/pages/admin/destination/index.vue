@@ -132,14 +132,6 @@ function removeCategory(id: number) {
     );
 }
 
-// const formUser = useForm({
-//     id: null,
-//     name: '',
-//     role: [],
-//     email: '',
-//     password: '',
-// });
-
 const filteredDestinations = computed(() => {
     if (!q.value) {
         return props.destinations;
@@ -279,6 +271,7 @@ async function saveDestination() {
             name: form.value.name,
             categories: form.value.categories,
             detail: form.value.detail,
+            images: pendingImages.value,
         };
         console.log(payload);
         

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, unref } from "vue"
+import { ref, computed, watch, unref, nextTick } from "vue"
 // import { toast } from "vue-sonner"
 // import { route } from "ziggy-js"
 
@@ -86,10 +86,16 @@ function deepClone<T>(v: T): T {
 }
 
 const localForm = ref(deepClone(unref(props.form)))
+let syncingFromParent = false
 watch(
   () => unref(props.form),
   (newVal) => {
+    syncingFromParent = true
     localForm.value = deepClone(newVal)
+    // release the lock on next tick to avoid echoing back
+    nextTick(() => {
+      syncingFromParent = false
+    })
   },
   { deep: true }
 )
@@ -98,6 +104,7 @@ watch(
 watch(
   localForm,
   (v) => {
+    if (syncingFromParent) return
     emit("update:form", deepClone(v))
   },
   { deep: true }
@@ -198,7 +205,7 @@ watch(localCaption, v => emit("update:uploadCaption", v))
             </FormItem>
           </div>
 
-          <FormItem>
+          <FormItem class="mt-4">
             <FormLabel>Description</FormLabel>
             <FormControl>
               <Textarea
@@ -210,7 +217,7 @@ watch(localCaption, v => emit("update:uploadCaption", v))
           </FormItem>
 
           <!-- 2 Kolom Grid -->
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
             <FormItem>
               <FormLabel>Address</FormLabel>
               <FormControl>

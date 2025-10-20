@@ -50,6 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['role:super_admin,admin_destinasi'])->group(function () {
         Route::resource('destinations', DestinationController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::post('destinations/{destination}/images', [DestinationImageController::class, 'store'])->name('destinations.images.store');
+        Route::patch('destinations/{destination}/images/{image}/cover', [DestinationImageController::class, 'markCover'])->name('destinations.images.cover');
         Route::delete('destinations/{destination}/images/{image}', [DestinationImageController::class, 'destroy'])->name('destinations.images.destroy');
         Route::resource('categories', CategoryController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::resource('events', EventController::class)->only(['store', 'update', 'destroy']);

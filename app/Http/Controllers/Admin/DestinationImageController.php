@@ -51,4 +51,17 @@ class DestinationImageController extends Controller
         $image->delete();
         return response()->json(['message' => 'Deleted']);
     }
+
+    public function markCover(Destination $destination, DestinationImage $image)
+    {
+        if ($image->destination_id !== $destination->id) {
+            abort(404);
+        }
+
+        DestinationImage::where('destination_id', $destination->id)->update(['is_cover' => false]);
+        $image->is_cover = true;
+        $image->save();
+
+        return response()->json($image->fresh());
+    }
 }
