@@ -59,6 +59,18 @@ type DetailDestination = {
     status: string;
 };
 
+async function updateDistricts() {
+    try {
+        const res = await fetch(route('districts.update', { code: '35.02' }), {
+            headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) throw new Error('Failed to update districts');
+    } catch (e) {
+        console.error(e);
+        toast.error((e as any).message || 'Failed to update districts');
+    }
+}
+
 type DestinationRow = {
     id: number;
     user_id: number;
@@ -467,6 +479,7 @@ async function setCover(item: DisplayImage) {
 
 onMounted(() => {
     fetchCategories();
+    updateDistricts();
 });
 </script>
 

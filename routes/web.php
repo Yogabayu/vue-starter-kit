@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\CommentController;
 use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\EventController;
 use App\Http\Controllers\Admin\DestinationImageController;
+use App\Http\Controllers\Admin\DistrictController;
+use App\Http\Controllers\Admin\VillageController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -48,6 +50,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Protected CRUD for content (super_admin or admin_destinasi)
     Route::middleware(['role:super_admin,admin_destinasi'])->group(function () {
+        //wilayah
+        Route::get('/districts', [DistrictController::class, 'index'])->name('districts.index');
+        Route::get('/districts/update/{code}', [DistrictController::class, 'update'])->name('districts.update');
+        Route::get('/villages', [AdminVillageController::class, 'index'])->name('villages.index');
+        Route::get('/villages/update', [VillageController::class, 'update'])->name('villages.update');
+
         Route::resource('destinations', DestinationController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::post('destinations/{destination}/images', [DestinationImageController::class, 'store'])->name('destinations.images.store');
         Route::patch('destinations/{destination}/images/{image}/cover', [DestinationImageController::class, 'markCover'])->name('destinations.images.cover');

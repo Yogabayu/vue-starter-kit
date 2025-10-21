@@ -14,6 +14,8 @@ return new class extends Migration {
             $table->string('title');
             $table->text('description');
             $table->string('location');
+            $table->string('pic');
+            $table->string('phone');
             $table->string('village')->nullable();
             $table->string('district')->nullable();
             $table->decimal('latitude', 10, 8)->nullable();
@@ -21,7 +23,7 @@ return new class extends Migration {
             $table->date('start_date');
             $table->date('end_date')->nullable();
             $table->string('banner_image')->nullable();
-            $table->enum('status', ['upcoming','ongoing','past'])->default('upcoming');
+            $table->enum('status', ['upcoming', 'ongoing', 'past'])->default('upcoming');
             $table->timestamps();
         });
     }
@@ -31,4 +33,3 @@ return new class extends Migration {
         Schema::dropIfExists('events');
     }
 };
-

@@ -27,9 +27,9 @@ return new class extends Migration {
             $table->decimal('ticket_price', 10, 2)->nullable();
             $table->string('open_hours')->nullable();
             $table->string('close_hours')->nullable();
-            $table->string('cover_image')->nullable();
             $table->string('phone')->nullable();
-            $table->enum('status', ['draft', 'published'])->default('published');
+            $table->string('pic')->nullable();
+            $table->enum('status', ['draft', 'published', 'pending'])->default('pending');
             $table->timestamps();
         });
 
@@ -57,4 +57,3 @@ return new class extends Migration {
         Schema::dropIfExists('destinations');
     }
 };
-
