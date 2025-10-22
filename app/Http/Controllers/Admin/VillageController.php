@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\District;
 use App\Models\Village;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class VillageController extends Controller
 {
@@ -18,23 +21,48 @@ class VillageController extends Controller
         }
     }
 
-    public function update()
+    public function update($code)
     {
         try {
-            $response = Http::get("https://wilayah.id/api/villages/{$code}.json");
-            if ($response->successful()) {
-                $villagesData = $response->json();
-                foreach ($villagesData['data'] as $data) {
-                    Village::updateOrCreate(
-                        ['code' => $data['code']],
-                        ['name' => $data['name']]
-                    );
-                }
+            $villages = Village::where('district_id', $code)->get();
+
+            if ($villages->isNotEmpty()) {
+                return response()->json([
+                    'message' => 'Villages already up to date.',
+                    'data' => $villages,
+                ]);
             }
-            Log::info('Villages updated successfully.');
-            return response()->json(['message' => 'Villages updated successfully.']);
+
+            $response = Http::get("https://wilayah.id/api/villages/{$code}.json");
+
+            if (! $response->successful()) {
+                throw new \Exception('Failed to fetch data from API');
+            }
+
+            // Simpan data baru
+            $district = District::where('code', $code)->first();
+
+            $villagesData = collect($response->json('data'))->map(fn($item) => [
+                'code' => $item['code'],
+                'name' => $item['name'],
+                'district_id' => $district?->id
+            ]);
+
+            Village::upsert($villagesData->toArray(), ['code'], ['name', 'district_id']);
+
+            Log::info("Villages for district {$code} updated successfully.");
+
+            return response()->json([
+                'message' => 'Villages updated successfully.',
+                'data' => $villagesData,
+            ]);
         } catch (\Throwable $th) {
-            Log::error('Failed to update villages: ' . $th->getMessage());
+            Log::error("Failed to update villages for {$code}: {$th->getMessage()}");
+
+            return response()->json([
+                'error' => 'Failed to update villages',
+                'message' => $th->getMessage(),
+            ], 500);
         }
     }
 }

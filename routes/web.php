@@ -54,7 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/districts', [DistrictController::class, 'index'])->name('districts.index');
         Route::get('/districts/update/{code}', [DistrictController::class, 'update'])->name('districts.update');
         Route::get('/villages', [AdminVillageController::class, 'index'])->name('villages.index');
-        Route::get('/villages/update', [VillageController::class, 'update'])->name('villages.update');
+        Route::get('/villages/update/{code}', [VillageController::class, 'update'])->name('villages.update');
 
         Route::resource('destinations', DestinationController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::post('destinations/{destination}/images', [DestinationImageController::class, 'store'])->name('destinations.images.store');

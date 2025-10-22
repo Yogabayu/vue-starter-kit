@@ -14,7 +14,7 @@ class DistrictController extends Controller
     {
         try {
             $districts = District::all();
-            return response()->json($districts);
+            return response()->json(['data' => $districts, 'message' => 'Districts fetched successfully'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to fetch districts'], 500);
         }

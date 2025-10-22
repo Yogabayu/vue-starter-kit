@@ -2,9 +2,9 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { index as destinationsIndex } from '@/routes/destinations';
 import type { BreadcrumbItem } from '@/types';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, usePage, useForm } from '@inertiajs/vue3';
 import { BadgePlus } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 
 // shadcn-vue primitives
@@ -23,6 +23,14 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { route } from 'ziggy-js';
+function getCookie(name: string) {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+}
+function csrfHeaders(extra: Record<string, string> = {}) {
+    const token = getCookie('XSRF-TOKEN');
+    return { 'X-XSRF-TOKEN': token, ...extra } as Record<string, string>;
+}
 type ImageDestination = {
     id: number;
     destination_id: number;
@@ -41,6 +49,13 @@ type PendingImage = {
 };
 
 type DisplayImage = PendingImage | ({ kind: 'persisted' } & ImageDestination);
+
+type ApiStyle = {
+    code: string;
+    name: string;
+};
+
+const districts = ref([] as ApiStyle[]);
 
 type DetailDestination = {
     id: number;
@@ -68,6 +83,21 @@ async function updateDistricts() {
     } catch (e) {
         console.error(e);
         toast.error((e as any).message || 'Failed to update districts');
+    }
+}
+
+async function getDistricts() {
+    try {
+        const response = await fetch(route('districts.index'), {
+            headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        districts.value = data.data;
+    } catch (error) {
+        console.error('Error fetching districts data:', error);
     }
 }
 
@@ -107,7 +137,7 @@ const selected: any = ref<DestinationRow | null>(null);
 const pageCtx = usePage();
 const currentUserId = computed(() => pageCtx.props.auth?.user?.id);
 
-const form = ref({
+const form = useForm({
     id: null as number | null,
     name: '',
     slug: '',
@@ -128,20 +158,16 @@ const form = ref({
 });
 
 function toggleCategory(id: number) {
-    if (!form.value) return;
-    const list = form.value.categories ?? [];
+    const list = form.categories ?? [];
     const i = list.indexOf(id);
     if (i === -1) list.push(id);
     else list.splice(i, 1);
     // force reactivity in some edge cases
-    form.value.categories = [...list];
+    form.categories = [...list];
 }
 
 function removeCategory(id: number) {
-    if (!form.value) return;
-    form.value.categories = (form.value.categories ?? []).filter(
-        (x) => x !== id,
-    );
+    form.categories = (form.categories ?? []).filter((x) => x !== id);
 }
 
 const filteredDestinations = computed(() => {
@@ -216,10 +242,10 @@ async function fetchDestinationDetail(id: number) {
         pendingImages.value = [];
         images.value = data?.images ?? [];
         if (Array.isArray(data?.categories)) {
-            form.value.categories = data.categories.map((c: any) => c.id);
+            form.categories = data.categories.map((c: any) => c.id);
         }
         if (data?.detail) {
-            form.value.detail = {
+            form.detail = {
                 description: data.detail.description ?? '',
                 address: data.detail.address ?? '',
                 village: data.detail.village ?? '',
@@ -239,27 +265,29 @@ async function fetchDestinationDetail(id: number) {
 }
 
 function openCreate() {
+    updateDistricts();
+    nextTick(() => {
+        getDistricts();
+    });
     selected.value = null;
     images.value = [];
     pendingImages.value = [];
-    form.value = {
-        id: null,
-        name: '',
-        slug: '',
-        categories: [],
-        detail: {
-            description: '',
-            address: '',
-            village: '',
-            district: '',
-            latitude: '',
-            longitude: '',
-            ticket_price: '',
-            open_hours: '',
-            close_hours: '',
-            phone: '',
-            status: 'published',
-        },
+    form.id = null;
+    form.name = '';
+    form.slug = '';
+    form.categories = [];
+    form.detail = {
+        description: '',
+        address: '',
+        village: '',
+        district: '',
+        latitude: '',
+        longitude: '',
+        ticket_price: '',
+        open_hours: '',
+        close_hours: '',
+        phone: '',
+        status: 'published',
     } as any;
     isEditOpen.value = true;
 }
@@ -267,84 +295,59 @@ function openCreate() {
 async function openEdit(row: DestinationRow) {
     await fetchCategories();
     selected.value = row;
-    form.value.id = row.id;
-    form.value.name = row.name;
-    form.value.slug = row.slug;
-    form.value.categories = (row.categories || []).map((c: any) => c.id);
+    form.id = row.id;
+    form.name = row.name;
+    form.slug = row.slug;
+    form.categories = (row.categories || []).map((c: any) => c.id);
     await fetchDestinationDetail(row.id);
     isEditOpen.value = true;
 }
 
 async function saveDestination() {
     try {
-        const payload: any = {
-            user_id: currentUserId.value,
-            slug: form.value.slug,
-            name: form.value.name,
-            categories: form.value.categories,
-            detail: form.value.detail,
-            images: pendingImages.value,
-        };
-        console.log(payload);
-        
-        // if (!form.value.id) {
-        //     const res = await fetch(route('destinations.store'), {
-        //         method: 'POST',
-        //         body: JSON.stringify(payload),
-        //     });
-        // if (!res.ok) throw new Error('Failed to create');
-        // const created = await res.json();
-        // // ensure we have the new id for subsequent image upload
-        // form.value.id = created.id;
-        // toast.success('Destination created');
-        // } else {
-        //     const res = await fetch(
-        //         route('destinations.update', { destination: form.value.id }),
-        //         {
-        //             method: 'PUT',
-        //             headers: {
-        //                 'Content-Type': 'application/json',
-        //                 Accept: 'application/json',
-        //             },
-        //             body: JSON.stringify(payload),
-        //         },
-        //     );
-        //     if (!res.ok) throw new Error('Failed to update');
-        //     toast.success('Destination updated');
-        // }
-        // // Upload all staged pending images (if any)
-        // if (pendingImages.value.length && form.value.id) {
-        //     for (const p of [...pendingImages.value]) {
-        //         try {
-        //             isUploading.value = true;
-        //             const fd = new FormData();
-        //             fd.append('image', p.file);
-        //             if (p.caption) fd.append('caption', p.caption);
-        //             if (p.is_cover) fd.append('is_cover', '1');
-        //             const resUp = await fetch(
-        //                 route('destinations.images.store', { destination: form.value.id }),
-        //                 { method: 'POST', body: fd },
-        //             );
-        //             if (!resUp.ok) throw new Error('Failed to upload');
-        //             const data = await resUp.json();
-        //             images.value.unshift(data);
-        //         } catch (err) {
-        //             console.error(err);
-        //             toast.error('Upload failed');
-        //         } finally {
-        //             try { window.URL.revokeObjectURL(p.preview_url); } catch {}
-        //             isUploading.value = false;
-        //         }
-        //     }
-        //     pendingImages.value = [];
-        // }
-        // isEditOpen.value = false;
-        // window.location.reload();
+        isUploading.value = true;
+
+        const formData = new FormData();
+        formData.append('user_id', currentUserId.value);
+        formData.append('slug', form.slug);
+        formData.append('name', form.name);
+
+        // categories
+        form.categories.forEach((id) => formData.append('categories[]', id.toString()));
+
+        // detail
+        formData.append('detail', JSON.stringify(form.detail));
+
+        // images (pending)
+        pendingImages.value.forEach((img, i) => {
+            formData.append(`images[${i}][file]`, img.file);
+            formData.append(`images[${i}][caption]`, img.caption || '');
+            formData.append(`images[${i}][is_cover]`, img.is_cover ? '1' : '0');
+        });
+
+        const res = await fetch(route('destinations.store'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: csrfHeaders({ Accept: 'application/json' }),
+            body: formData,
+        });
+
+        if (!res.ok) throw new Error('Failed to create destination');
+        const created = await res.json();
+        toast.success('Destination created');
+
+        // bersihkan form
+        pendingImages.value = [];
+        isEditOpen.value = false;
+        window.location.reload();
     } catch (e) {
         console.error(e);
         toast.error((e as any).message || 'Failed to save');
+    } finally {
+        isUploading.value = false;
     }
 }
+
 
 async function removeDestination(id: number) {
     try {
@@ -369,61 +372,43 @@ const uploadCaption = ref('');
 
 function onFileChange(e: Event) {
     const input = e.target as HTMLInputElement | null;
-    if (!input?.files?.length) {
-        uploadFile.value = null;
-        return;
+    if (!input?.files?.length) return;
+
+    for (const file of Array.from(input.files)) {
+        const uid =
+            globalThis.crypto?.randomUUID?.() ??
+            `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const preview = URL.createObjectURL(file);
+
+        pendingImages.value.push({
+            kind: 'pending',
+            uid,
+            file,
+            preview_url: preview,
+            caption: uploadCaption.value || '',
+            is_cover: false,
+        });
     }
-    const file = input.files[0];
-    const uid = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
-    const preview = window.URL.createObjectURL(file);
-    pendingImages.value.push({
-        kind: 'pending',
-        uid,
-        file,
-        preview_url: preview,
-        caption: uploadCaption.value || '',
-        is_cover: false,
-    });
-    // clear single use fields
-    uploadFile.value = null;
+
+    // Reset field agar bisa pilih file yang sama lagi
+    input.value = '';
     uploadCaption.value = '';
-    if (input) input.value = '';
 }
 
-async function uploadImage() {
-    if (!form.value.id || !uploadFile.value) return;
-    try {
-        isUploading.value = true;
-        const fd = new FormData();
-        fd.append('image', uploadFile.value);
-        if (uploadCaption.value) fd.append('caption', uploadCaption.value);
-        const res = await fetch(
-            route('destinations.images.store', { destination: form.value.id }),
-            { method: 'POST', body: fd },
-        );
-        if (!res.ok) throw new Error('Failed to upload');
-        const data = await res.json();
-        images.value.unshift(data);
-        toast.success('Image uploaded');
-        uploadFile.value = null;
-        uploadCaption.value = '';
-    } catch (e) {
-        console.error(e);
-        toast.error('Upload failed');
-    } finally {
-        isUploading.value = false;
-    }
-}
 
 async function setImageAsCover(imageId: number) {
-    if (!form.value.id) return;
+    if (!form.id) return;
     try {
         const res = await fetch(
             route('destinations.images.cover', {
-                destination: form.value.id,
+                destination: form.id,
                 image: imageId,
             }),
-            { method: 'PATCH', headers: { Accept: 'application/json' } },
+            {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ 'Accept': 'application/json' }),
+            },
         );
         if (!res.ok) throw new Error('Failed to set cover');
         images.value = images.value.map((img) => ({
@@ -438,14 +423,18 @@ async function setImageAsCover(imageId: number) {
 }
 
 async function deleteImage(imageId: number) {
-    if (!form.value.id) return;
+    if (!form.id) return;
     try {
         const res = await fetch(
             route('destinations.images.destroy', {
-                destination: form.value.id,
+                destination: form.id,
                 image: imageId,
             }),
-            { method: 'DELETE' },
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ 'Accept': 'application/json' }),
+            },
         );
         if (!res.ok) throw new Error('Failed');
         images.value = images.value.filter((i) => i.id !== imageId);
@@ -458,8 +447,12 @@ async function deleteImage(imageId: number) {
 
 function removeImage(item: DisplayImage) {
     if (item.kind === 'pending') {
-        try { window.URL.revokeObjectURL(item.preview_url); } catch {}
-        pendingImages.value = pendingImages.value.filter((p) => p.uid !== item.uid);
+        try {
+            window.URL.revokeObjectURL(item.preview_url);
+        } catch {}
+        pendingImages.value = pendingImages.value.filter(
+            (p) => p.uid !== item.uid,
+        );
         return;
     }
     return deleteImage(item.id);
@@ -474,12 +467,23 @@ async function setCover(item: DisplayImage) {
         return;
     }
     await setImageAsCover(item.id);
-    pendingImages.value = pendingImages.value.map((p) => ({ ...p, is_cover: false }));
+    pendingImages.value = pendingImages.value.map((p) => ({
+        ...p,
+        is_cover: false,
+    }));
+}
+
+function updateFormFromDialog(v: any) {
+    // Merge emitted form state into useForm without replacing the instance
+    form.id = v?.id ?? form.id;
+    form.name = v?.name ?? form.name;
+    form.slug = v?.slug ?? form.slug;
+    if (Array.isArray(v?.categories)) form.categories = v.categories;
+    if (v?.detail) form.detail = v.detail;
 }
 
 onMounted(() => {
     fetchCategories();
-    updateDistricts();
 });
 </script>
 
@@ -625,11 +629,13 @@ onMounted(() => {
         <DestinationDialog
             v-model:open="isEditOpen"
             v-model:uploadCaption="uploadCaption"
-            v-model:form="form"
+            :form="form"
+            @update:form="updateFormFromDialog"
             :categories="categories"
             :images="displayImages"
             :isUploading="isUploading"
             :uploadFile="uploadFile"
+            :districts="districts"
             @save="saveDestination"
             @file-change="onFileChange"
             @delete-image="removeImage"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, unref, watch } from 'vue';
+import { computed, nextTick,  ref, unref, watch } from 'vue';
 // import { toast } from "vue-sonner"
 // import { route } from "ziggy-js"
 
@@ -37,36 +37,17 @@ import { Textarea } from '@/components/ui/textarea';
 
 // Lucide icons
 import { Check, Trash2 } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 const fileEl = ref<HTMLInputElement | null>(null);
 
-
-type ApiStyle = {
-    code: string;
-    name: string;
-};
-
-const districts = ref([] as ApiStyle[]);
-const selectedDistrict = ref();
-const villages = ref([] as ApiStyle[]);
-
-//mounted
-onMounted(() => {
-    fetch(route('districts.index'))
-        .then((res) => res.json())
-        .then((data) => {
-            districts.value = data.data;
-            console.log(districts.value);
-            
-        })
-        .catch((err) => {
-            console.error('Error fetching districts data:', err);
-        });
-});
+const villages = ref([] as any[]);
 
 //district
 async function getVillages(idDistricts: string) {
     try {
-        const response = await fetch(`/proxy/villages/${idDistricts}`);
+        const response = await fetch(route('villages.update', { code: idDistricts }), {
+            headers: { Accept: 'application/json' },
+        });
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
@@ -86,6 +67,7 @@ const props = defineProps<{
     isUploading: boolean;
     uploadFile: File | null;
     uploadCaption: string;
+    districts: Array<{ code: string; name: string }>;
 }>();
 
 const emit = defineEmits<{

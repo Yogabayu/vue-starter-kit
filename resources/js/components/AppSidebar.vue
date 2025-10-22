@@ -43,7 +43,7 @@ const settingNavItems: NavItem[] = [
 
 // Role-based visibility
 const page = usePage();
-const roleNames = computed<string[]>(() => page.props.auth?.user?.role_names ?? []);
+const roleNames = computed<string[]>(() => (page.props.auth?.user as any)?.role_names ?? []);
 const isSuperAdmin = computed(() => roleNames.value.includes('super_admin'));
 
 // const footerNavItems: NavItem[] = [
