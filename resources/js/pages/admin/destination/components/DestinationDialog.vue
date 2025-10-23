@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick,  ref, unref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, unref, watch } from 'vue';
 // import { toast } from "vue-sonner"
 // import { route } from "ziggy-js"
 
 // Shadcn components
 import { Button } from '@/components/ui/button';
-import { route } from 'ziggy-js';
 import {
     Command,
     CommandEmpty,
@@ -23,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import {
     FormControl,
+    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -34,20 +34,24 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { route } from 'ziggy-js';
 
 // Lucide icons
 import { Check, Trash2 } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
 const fileEl = ref<HTMLInputElement | null>(null);
 
 const villages = ref([] as any[]);
+const urlImage = ref('localhost:8000/storage/');
 
 //district
 async function getVillages(idDistricts: string) {
     try {
-        const response = await fetch(route('villages.update', { code: idDistricts }), {
-            headers: { Accept: 'application/json' },
-        });
+        const response = await fetch(
+            route('villages.update', { code: idDistricts }),
+            {
+                headers: { Accept: 'application/json' },
+            },
+        );
         if (!response.ok) {
             throw new Error('Network response was not ok');
         }
@@ -57,6 +61,14 @@ async function getVillages(idDistricts: string) {
         console.error('Error fetching villages data:', error);
     }
 }
+
+onMounted(async () => {
+    if (props.form.id) {
+        console.log(props.form);
+        
+        await getVillages(props.form.detail.district);
+    }
+});
 
 // Props & emits
 const props = defineProps<{
@@ -151,7 +163,9 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                     {{ props.form.id ? 'Edit Destination' : 'Add Destination' }}
                 </DialogTitle>
                 <DialogDescription>
-                    Kelola destinasi, kategori dan gambar
+                    Manage your destination information here. <br />
+                    <span class="text-red-500">*</span> indicates required
+                    fields.
                 </DialogDescription>
             </DialogHeader>
 
@@ -159,7 +173,10 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                 <FormField name="name">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormItem>
-                            <FormLabel>Name</FormLabel>
+                            <FormLabel
+                                >Name
+                                <span class="text-red-500">*</span></FormLabel
+                            >
                             <FormControl>
                                 <Input
                                     v-model="localForm.name"
@@ -170,7 +187,10 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
 
                         <FormItem>
-                            <FormLabel>Category</FormLabel>
+                            <FormLabel
+                                >Category
+                                <span class="text-red-500">*</span></FormLabel
+                            >
                             <Popover>
                                 <PopoverTrigger as-child>
                                     <FormControl>
@@ -258,7 +278,10 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                     </div>
 
                     <FormItem class="mt-4">
-                        <FormLabel>Description</FormLabel>
+                        <FormLabel
+                            >Description
+                            <span class="text-red-500">*</span></FormLabel
+                        >
                         <FormControl>
                             <Textarea
                                 v-model="localForm.detail.description"
@@ -271,7 +294,10 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                     <!-- 2 Kolom Grid -->
                     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormItem>
-                            <FormLabel>Address</FormLabel>
+                            <FormLabel
+                                >Address
+                                <span class="text-red-500">*</span></FormLabel
+                            >
                             <FormControl>
                                 <Input
                                     v-model="localForm.detail.address"
@@ -281,11 +307,16 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                             </FormControl>
                         </FormItem>
                         <FormItem>
-                            <FormLabel>District</FormLabel>
+                            <FormLabel
+                                >District
+                                <span class="text-red-500">*</span></FormLabel
+                            >
                             <FormControl>
                                 <select
                                     v-model="localForm.detail.district"
-                                    @change="getVillages(localForm.detail.district)"
+                                    @change="
+                                        getVillages(localForm.detail.district)
+                                    "
                                     class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
                                 >
                                     <option value="">Select District</option>
@@ -301,7 +332,10 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
 
                         <FormItem>
-                            <FormLabel>Village</FormLabel>
+                            <FormLabel>
+                                Village
+                                <span class="text-red-500">*</span>
+                            </FormLabel>
                             <FormControl>
                                 <select
                                     v-model="localForm.detail.village"
@@ -318,40 +352,6 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                 </select>
                             </FormControl>
                         </FormItem>
-
-                        <FormItem>
-                            <FormLabel>Ticket Price</FormLabel>
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.ticket_price"
-                                    type="text"
-                                    placeholder="Destination Ticket Price"
-                                />
-                            </FormControl>
-                        </FormItem>
-
-                        <FormItem>
-                            <FormLabel>Open Hours</FormLabel>
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.open_hours"
-                                    type="time"
-                                    placeholder="Open Hours"
-                                />
-                            </FormControl>
-                        </FormItem>
-
-                        <FormItem>
-                            <FormLabel>Close Hours</FormLabel>
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.close_hours"
-                                    type="time"
-                                    placeholder="Close Hours"
-                                />
-                            </FormControl>
-                        </FormItem>
-
                         <FormItem>
                             <FormLabel>Phone</FormLabel>
                             <FormControl>
@@ -362,18 +362,61 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                     placeholder="+62 812 3456 7890"
                                 />
                             </FormControl>
+                            <FormDescription>
+                                Include country code, e.g. +62 for Indonesia
+                            </FormDescription>
                         </FormItem>
 
                         <FormItem>
-                            <FormLabel>Status</FormLabel>
+                            <FormLabel
+                                >Open Hours
+                                <span class="text-red-500">*</span></FormLabel
+                            >
                             <FormControl>
-                                <select
-                                    v-model="localForm.detail.status"
-                                    class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
-                                >
-                                    <option value="published">Published</option>
-                                    <option value="draft">Draft</option>
-                                </select>
+                                <Input
+                                    v-model="localForm.detail.open_hours"
+                                    type="time"
+                                    placeholder="Open Hours"
+                                />
+                            </FormControl>
+                        </FormItem>
+
+                        <FormItem>
+                            <FormLabel
+                                >Close Hours
+                                <span class="text-red-500">*</span></FormLabel
+                            >
+                            <FormControl>
+                                <Input
+                                    v-model="localForm.detail.close_hours"
+                                    type="time"
+                                    placeholder="Close Hours"
+                                />
+                            </FormControl>
+                        </FormItem>
+
+                        <FormItem>
+                            <FormLabel> Ticket Price </FormLabel>
+                            <FormControl>
+                                <Input
+                                    v-model="localForm.detail.ticket_price"
+                                    type="text"
+                                    placeholder="Destination Ticket Price"
+                                />
+                            </FormControl>
+                            <FormDescription>
+                                Format: 10000 or 15000-25000
+                            </FormDescription>
+                        </FormItem>
+                        
+                        <FormItem>
+                            <FormLabel> Maps Link (google maps) </FormLabel>
+                            <FormControl>
+                                <Input
+                                    v-model="localForm.detail.maps_link"
+                                    type="text"
+                                    placeholder="Destination Maps Link"
+                                />
                             </FormControl>
                         </FormItem>
                     </div>
@@ -388,6 +431,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                     accept="image/*"
                                     class="hidden"
                                     ref="fileEl"
+                                    multiple
                                     @change="emit('file-change', $event)"
                                 />
 
@@ -399,17 +443,11 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                 >
                                     Choose File
                                 </Button>
-
-                                <Input
-                                    v-model="localCaption"
-                                    placeholder="Caption (optional)"
-                                    class="w-[200px]"
-                                />
                             </div>
                         </FormControl>
                     </FormItem>
 
-                    <div class="grid gap-3">
+                    <div class="grid gap-3" v-if="!props.form.id">
                         <div
                             v-if="props.images.length"
                             class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4"
@@ -428,6 +466,63 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                         img.kind === 'pending'
                                             ? img.preview_url
                                             : img.image_url
+                                    "
+                                    class="h-28 w-full object-cover transition group-hover:opacity-75"
+                                />
+                                <div
+                                    class="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/50 px-2 py-1 text-xs"
+                                >
+                                    <span>
+                                        <template v-if="img.is_cover"
+                                            >Cover</template
+                                        >
+                                        <template v-else>{{
+                                            img.caption || '\u00A0'
+                                        }}</template>
+                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            v-if="!img.is_cover"
+                                            @click.prevent="
+                                                emit('set-cover', img)
+                                            "
+                                            class="underline hover:opacity-80"
+                                        >
+                                            Set cover
+                                        </button>
+                                        <button
+                                            @click.prevent="
+                                                emit('delete-image', img)
+                                            "
+                                            class="hover:text-destructive"
+                                            title="Delete image"
+                                        >
+                                            <Trash2 class="inline h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> 
+                    <div class="grid gap-3" v-else>
+                        <div
+                            v-if="props.images.length"
+                            class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4"
+                        >
+                            <div
+                                v-for="img in props.images"
+                                :key="
+                                    img.kind === 'pending'
+                                        ? 'p-' + img.uid
+                                        : 'i-' + img.id
+                                "
+                                class="group relative overflow-hidden rounded-lg border shadow-sm"
+                            >
+                                <img
+                                    :src="
+                                        img.kind === 'pending'
+                                            ? urlImage + img.preview_url
+                                            : urlImage + img.image_url
                                     "
                                     class="h-28 w-full object-cover transition group-hover:opacity-75"
                                 />

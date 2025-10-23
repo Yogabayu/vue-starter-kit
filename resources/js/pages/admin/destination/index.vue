@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { index as destinationsIndex } from '@/routes/destinations';
 import type { BreadcrumbItem } from '@/types';
-import { Head, usePage, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { BadgePlus } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -24,7 +24,13 @@ import {
 } from '@/components/ui/table';
 import { route } from 'ziggy-js';
 function getCookie(name: string) {
-    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+    const m = document.cookie.match(
+        new RegExp(
+            '(?:^|; )' +
+                name.replace(/([.$?*|{}()\[\]\\/+^])/g, '\\$1') +
+                '=([^;]*)',
+        ),
+    );
     return m ? decodeURIComponent(m[1]) : '';
 }
 function csrfHeaders(extra: Record<string, string> = {}) {
@@ -64,8 +70,7 @@ type DetailDestination = {
     address: string;
     village: string;
     district: string;
-    latitude: string;
-    longitude: string;
+    maps_link: string;
     ticket_price: string;
     opening_hours: string;
     close_hours: string;
@@ -73,7 +78,6 @@ type DetailDestination = {
     phone: string;
     status: string;
 };
-
 async function updateDistricts() {
     try {
         const res = await fetch(route('districts.update', { code: '35.02' }), {
@@ -147,13 +151,12 @@ const form = useForm({
         address: '',
         village: '',
         district: '',
-        latitude: '',
-        longitude: '',
+        maps_link: '',
         ticket_price: '',
         open_hours: '',
         close_hours: '',
         phone: '',
-        status: 'published',
+        status: 'draft',
     } as any,
 });
 
@@ -250,8 +253,7 @@ async function fetchDestinationDetail(id: number) {
                 address: data.detail.address ?? '',
                 village: data.detail.village ?? '',
                 district: data.detail.district ?? '',
-                latitude: data.detail.latitude ?? '',
-                longitude: data.detail.longitude ?? '',
+                maps_link: data.detail.maps_link ?? '',
                 ticket_price: data.detail.ticket_price ?? '',
                 open_hours: data.detail.open_hours ?? '',
                 close_hours: data.detail.close_hours ?? '',
@@ -281,8 +283,7 @@ function openCreate() {
         address: '',
         village: '',
         district: '',
-        latitude: '',
-        longitude: '',
+        maps_link: '',
         ticket_price: '',
         open_hours: '',
         close_hours: '',
@@ -294,6 +295,10 @@ function openCreate() {
 
 async function openEdit(row: DestinationRow) {
     await fetchCategories();
+    await updateDistricts();
+    await nextTick(() => {
+        getDistricts();
+    });
     selected.value = row;
     form.id = row.id;
     form.name = row.name;
@@ -306,40 +311,88 @@ async function openEdit(row: DestinationRow) {
 async function saveDestination() {
     try {
         isUploading.value = true;
+        if (!form.id) {
+            const formData = new FormData();
+            formData.append('user_id', String(currentUserId.value));
+            formData.append('slug', form.slug);
+            formData.append('name', form.name);
 
-        const formData = new FormData();
-        formData.append('user_id', currentUserId.value);
-        formData.append('slug', form.slug);
-        formData.append('name', form.name);
+            // categories
+            form.categories.forEach((id) =>
+                formData.append('categories[]', id.toString()),
+            );
 
-        // categories
-        form.categories.forEach((id) => formData.append('categories[]', id.toString()));
+            // detail
+            formData.append('detail', JSON.stringify(form.detail));
 
-        // detail
-        formData.append('detail', JSON.stringify(form.detail));
+            // images (pending)
+            pendingImages.value.forEach((img, i) => {
+                formData.append(`images[${i}][file]`, img.file);
+                formData.append(`images[${i}][caption]`, img.caption || '');
+                formData.append(
+                    `images[${i}][is_cover]`,
+                    img.is_cover ? '1' : '0',
+                );
+            });
 
-        // images (pending)
-        pendingImages.value.forEach((img, i) => {
-            formData.append(`images[${i}][file]`, img.file);
-            formData.append(`images[${i}][caption]`, img.caption || '');
-            formData.append(`images[${i}][is_cover]`, img.is_cover ? '1' : '0');
-        });
+            const res = await fetch(route('destinations.store'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ Accept: 'application/json' }),
+                body: formData,
+            });
 
-        const res = await fetch(route('destinations.store'), {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: csrfHeaders({ Accept: 'application/json' }),
-            body: formData,
-        });
+            if (!res.ok) throw new Error('Failed to create destination');
+            toast.success('Destination created');
 
-        if (!res.ok) throw new Error('Failed to create destination');
-        const created = await res.json();
-        toast.success('Destination created');
+            // bersihkan form
+            pendingImages.value = [];
+            isEditOpen.value = false;
+            router.reload({ only: ['destinations'] });
+        } else {
+            const formData = new FormData();
+            formData.append('_method', 'PUT');
+            formData.append('name', form.name);
+            formData.append('slug', form.slug);
 
-        // bersihkan form
-        pendingImages.value = [];
-        isEditOpen.value = false;
-        window.location.reload();
+            // categories
+            form.categories.forEach((id) =>
+                formData.append('categories[]', id.toString()),
+            );
+
+            // detail
+            formData.append('detail', JSON.stringify(form.detail));
+
+            // images (pending)
+            if (pendingImages.value.length > 0) {
+                pendingImages.value.forEach((img, i) => {
+                    formData.append(`images[${i}][file]`, img.file);
+                    formData.append(`images[${i}][caption]`, img.caption || '');
+                    formData.append(
+                        `images[${i}][is_cover]`,
+                        img.is_cover ? '1' : '0',
+                    );
+                });
+            }
+
+            const res = await fetch(
+                route('destinations.update', { destination: form.id }),
+                {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: csrfHeaders({ Accept: 'application/json' }),
+                    body: formData,
+                },
+            );
+
+            if (!res.ok) throw new Error('Failed to update destination');
+            toast.success('Destination updated');
+
+            // bersihkan form
+            pendingImages.value = [];
+            isEditOpen.value = false;
+            router.reload({ only: ['destinations'] });
+        }
     } catch (e) {
         console.error(e);
         toast.error((e as any).message || 'Failed to save');
@@ -348,16 +401,19 @@ async function saveDestination() {
     }
 }
 
-
 async function removeDestination(id: number) {
     try {
         const res = await fetch(
             route('destinations.destroy', { destination: id }),
-            { method: 'DELETE', headers: { Accept: 'application/json' } },
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ Accept: 'application/json' }),
+            },
         );
         if (!res.ok) throw new Error('Failed to delete');
         toast.success('Destination deleted');
-        window.location.reload();
+        router.reload({ only: ['destinations'] });
     } catch (e) {
         console.error(e);
         toast.error('Failed to delete');
@@ -395,7 +451,6 @@ function onFileChange(e: Event) {
     uploadCaption.value = '';
 }
 
-
 async function setImageAsCover(imageId: number) {
     if (!form.id) return;
     try {
@@ -407,7 +462,7 @@ async function setImageAsCover(imageId: number) {
             {
                 method: 'PATCH',
                 credentials: 'same-origin',
-                headers: csrfHeaders({ 'Accept': 'application/json' }),
+                headers: csrfHeaders({ Accept: 'application/json' }),
             },
         );
         if (!res.ok) throw new Error('Failed to set cover');
@@ -433,7 +488,7 @@ async function deleteImage(imageId: number) {
             {
                 method: 'DELETE',
                 credentials: 'same-origin',
-                headers: csrfHeaders({ 'Accept': 'application/json' }),
+                headers: csrfHeaders({ Accept: 'application/json' }),
             },
         );
         if (!res.ok) throw new Error('Failed');
@@ -498,10 +553,14 @@ onMounted(() => {
                 <h2 class="text-xl font-semibold">Destination List</h2>
                 <Button
                     size="sm"
-                    class="hover:cursor-pointer"
+                    class="border border-gray-300 bg-white text-gray-900 hover:cursor-pointer dark:border-gray-700 dark:bg-muted dark:text-gray-100"
                     @click="openCreate"
-                    ><BadgePlus class="h-5 w-5 text-gray-600" /> add</Button
                 >
+                    <BadgePlus
+                        class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                    />
+                    add
+                </Button>
                 <div class="ml-auto w-full max-w-xs">
                     <Input v-model="q" placeholder="Search destinations." />
                 </div>

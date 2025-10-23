@@ -22,9 +22,8 @@ return new class extends Migration {
             $table->string('address');
             $table->string('village');
             $table->string('district');
-            $table->decimal('latitude', 10, 8)->nullable();
-            $table->decimal('longitude', 11, 8)->nullable();
-            $table->decimal('ticket_price', 10, 2)->nullable();
+            $table->text('maps_link')->nullable();
+            $table->string('ticket_price')->nullable();
             $table->string('open_hours')->nullable();
             $table->string('close_hours')->nullable();
             $table->string('phone')->nullable();

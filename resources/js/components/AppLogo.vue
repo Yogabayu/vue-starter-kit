@@ -3,12 +3,12 @@
 
 <template>
     <div
-        class="flex aspect-square size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground"
+        class="flex aspect-square size-8 items-center justify-center rounded-md dark:bg-sidebar-primary  text-sidebar-primary-foreground"
     >
         <img
             :src="'/exploreponorogormbg.png'"
             alt="Logo"
-            class="size-5 fill-current text-white dark:text-black"
+            class="size-10 fill-current text-white dark:text-black"
             v-bind="$attrs"
         />
     </div>

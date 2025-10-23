@@ -8,6 +8,7 @@ use App\Models\Destination;
 use App\Models\DetailDestination;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -26,9 +27,9 @@ class DestinationController extends Controller
         ]);
     }
 
-    public function show(Destination $destination)
+    public function show($id)
     {
-        $destination->load(['detail', 'images', 'categories']);
+        $destination = Destination::with(['detail', 'images', 'categories'])->findOrFail($id);
         return response()->json($destination);
     }
 
@@ -114,55 +115,121 @@ class DestinationController extends Controller
         });
     }
 
-    public function update(Request $request, Destination $destination)
+    public function update(Request $request, $id)
     {
+        $destination = Destination::with('detail', 'categories', 'images')->findOrFail($id);
 
         $data = $request->validate([
             'slug' => ['sometimes', 'string', 'max:255', Rule::unique('destinations', 'slug')->ignore($destination->id)],
             'name' => ['sometimes', 'string', 'max:255'],
             'categories' => ['sometimes', 'array'],
             'categories.*' => ['integer', 'exists:categories,id'],
-            'detail' => ['sometimes', 'array'],
-            'detail.description' => ['nullable', 'string'],
-            'detail.address' => ['nullable', 'string', 'max:255'],
-            'detail.village' => ['nullable', 'string', 'max:255'],
-            'detail.district' => ['nullable', 'string', 'max:255'],
-            'detail.latitude' => ['nullable', 'numeric'],
-            'detail.longitude' => ['nullable', 'numeric'],
-            'detail.ticket_price' => ['nullable', 'numeric'],
-            'detail.open_hours' => ['nullable', 'string', 'max:255'],
-            'detail.close_hours' => ['nullable', 'string', 'max:255'],
-            'detail.cover_image' => ['nullable', 'string', 'max:255'],
-            'detail.phone' => ['nullable', 'string', 'max:255'],
-            'detail.status' => ['nullable', Rule::in(['draft', 'published'])],
+            'detail' => ['sometimes'], // JSON string dari frontend
+            'images' => ['sometimes', 'array'],
+            'images.*.id' => ['nullable', 'integer', 'exists:destination_images,id'],
+            'images.*.file' => ['nullable', 'file', 'image'],
+            'images.*.caption' => ['nullable', 'string', 'max:255'],
+            'images.*.is_cover' => ['nullable', 'boolean'],
         ]);
 
-        return DB::transaction(function () use ($data, $destination) {
-            $destination->update($data);
+        return DB::transaction(function () use ($data, $request, $destination) {
+            // Update destination fields
+            $destination->update([
+                'slug' => $data['slug'] ?? $destination->slug,
+                'name' => $data['name'] ?? $destination->name,
+            ]);
 
-            if (array_key_exists('detail', $data)) {
-                $destination->detail()->updateOrCreate(
-                    ['destination_id' => $destination->id],
-                    $data['detail']
-                );
+            // Update detail
+            if ($request->filled('detail')) {
+                $detail = json_decode($request->input('detail'), true);
+                if (is_array($detail)) {
+                    foreach (['latitude', 'longitude', 'ticket_price'] as $numField) {
+                        if (isset($detail[$numField]) && $detail[$numField] === '') {
+                            $detail[$numField] = null;
+                        }
+                    }
+                    $destination->detail()->updateOrCreate(
+                        ['destination_id' => $destination->id],
+                        $detail
+                    );
+                }
             }
 
+            // Update categories
             if (array_key_exists('categories', $data)) {
                 $destination->categories()->sync($data['categories'] ?? []);
             }
 
-            return response()->json($destination->load(['detail', 'categories']));
+            // Update images
+            if ($request->has('images')) {
+                $existingImageIds = [];
+                foreach ($request->input('images', []) as $i => $imgData) {
+                    $imageId = $imgData['id'] ?? null;
+                    $caption = $imgData['caption'] ?? null;
+                    $isCover = (bool) ($imgData['is_cover'] ?? false);
+
+                    $file = $request->file("images.$i.file");
+                    $url = null;
+
+                    if ($imageId) {
+                        $image = $destination->images()->find($imageId);
+                        if ($image) {
+                            if ($file instanceof \Illuminate\Http\UploadedFile) {
+                                // Delete old file
+                                if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
+                                    Storage::disk('public')->delete($image->image_url);
+                                }
+                                $url = $file->store('destinations', 'public');
+                            } else {
+                                $url = $image->image_url;
+                            }
+                            $image->update([
+                                'caption' => $caption,
+                                'is_cover' => $isCover,
+                                'image_url' => $url,
+                            ]);
+                            $existingImageIds[] = $image->id;
+                        }
+                    } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
+                        $url = $file->store('destinations', 'public');
+                        $newImage = $destination->images()->create([
+                            'caption' => $caption,
+                            'is_cover' => $isCover,
+                            'image_url' => $url,
+                        ]);
+                        $existingImageIds[] = $newImage->id;
+                    }
+                }
+                // Delete images not present in the request
+                $destination->images()->whereNotIn('id', $existingImageIds)->get()->each(function ($image) {
+                    if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
+                        Storage::disk('public')->delete($image->image_url);
+                    }
+                    $image->delete();
+                });
+            }
+
+            return response()->json($destination->load(['detail', 'categories', 'images']));
         });
     }
 
-    public function destroy(Destination $destination)
+    public function destroy($id)
     {
+        $destination = Destination::with('images', 'detail')->findOrFail($id);
 
         return DB::transaction(function () use ($destination) {
+            foreach ($destination->images as $image) {
+                if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
+                    Storage::disk('public')->delete($image->image_url);
+                }
+            }
+
             $destination->categories()->detach();
             $destination->images()->delete();
             $destination->detail()->delete();
+
             $destination->delete();
+
             return response()->json(['message' => 'Deleted']);
         });
     }

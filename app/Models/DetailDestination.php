@@ -18,8 +18,7 @@ class DetailDestination extends Model
         'address',
         'village',
         'district',
-        'latitude',
-        'longitude',
+        'maps_link',
         'ticket_price',
         'open_hours',
         'close_hours',
@@ -29,9 +28,7 @@ class DetailDestination extends Model
     ];
 
     protected $casts = [
-        'latitude' => 'float',
-        'longitude' => 'float',
-        'ticket_price' => 'decimal:2',
+        'maps_link' => 'string'
     ];
 
     public function destination(): BelongsTo
@@ -39,4 +36,3 @@ class DetailDestination extends Model
         return $this->belongsTo(Destination::class);
     }
 }
-
