@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, unref, watch } from 'vue';
+import { computed, nextTick, ref, unref, watch } from 'vue';
 // import { toast } from "vue-sonner"
 // import { route } from "ziggy-js"
 
@@ -41,7 +41,6 @@ import { Check, Trash2 } from 'lucide-vue-next';
 const fileEl = ref<HTMLInputElement | null>(null);
 
 const villages = ref([] as any[]);
-const urlImage = ref('localhost:8000/storage/');
 
 //district
 async function getVillages(idDistricts: string) {
@@ -62,14 +61,6 @@ async function getVillages(idDistricts: string) {
     }
 }
 
-onMounted(async () => {
-    if (props.form.id) {
-        console.log(props.form);
-        
-        await getVillages(props.form.detail.district);
-    }
-});
-
 // Props & emits
 const props = defineProps<{
     open: boolean;
@@ -81,6 +72,15 @@ const props = defineProps<{
     uploadCaption: string;
     districts: Array<{ code: string; name: string }>;
 }>();
+
+watch(
+    () => props.open,
+    (val) => {
+        if (val) {
+            getVillages(props.form.detail.district);
+        }
+    }
+);
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
@@ -465,7 +465,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                     :src="
                                         img.kind === 'pending'
                                             ? img.preview_url
-                                            : img.image_url
+                                            : img.full_url
                                     "
                                     class="h-28 w-full object-cover transition group-hover:opacity-75"
                                 />
@@ -521,8 +521,8 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                 <img
                                     :src="
                                         img.kind === 'pending'
-                                            ? urlImage + img.preview_url
-                                            : urlImage + img.image_url
+                                            ? img.preview_url
+                                            : img.full_url
                                     "
                                     class="h-28 w-full object-cover transition group-hover:opacity-75"
                                 />

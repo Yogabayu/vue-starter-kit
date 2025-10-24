@@ -34,8 +34,10 @@ class DestinationImageController extends Controller
         return response()->json($image, 201);
     }
 
-    public function destroy(Destination $destination, DestinationImage $image)
+    public function destroy($destination, $image)
     {
+        $destination = Destination::findOrFail($destination);
+        $image = DestinationImage::findOrFail($image);
         // Optional ownership/authorization checks could go here
         if ($image->destination_id !== $destination->id) {
             abort(404);
@@ -52,8 +54,10 @@ class DestinationImageController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 
-    public function markCover(Destination $destination, DestinationImage $image)
+    public function markCover($destination, $image)
     {
+        $destination = Destination::findOrFail($destination);
+        $image = DestinationImage::findOrFail($image);
         if ($image->destination_id !== $destination->id) {
             abort(404);
         }

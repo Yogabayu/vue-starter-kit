@@ -18,6 +18,7 @@ class DestinationController extends Controller
 {
     public function index(): InertiaResponse
     {
+
         $destinations = Destination::with(['detail', 'coverImage', 'categories'])
             ->latest()
             ->get();
@@ -64,9 +65,6 @@ class DestinationController extends Controller
                 'slug' => $slug,
                 'name' => $validated['name'],
             ]);
-
-            // 4️⃣ Simpan detail (decode JSON string dari frontend)
-            // 4️⃣ Simpan detail (decode JSON string dari frontend)
             if ($request->filled('detail')) {
                 $detail = json_decode($request->input('detail'), true);
                 if (is_array($detail)) {
@@ -119,12 +117,15 @@ class DestinationController extends Controller
     {
         $destination = Destination::with('detail', 'categories', 'images')->findOrFail($id);
 
-        $data = $request->validate([
+        $validated = $request->validate([
             'slug' => ['sometimes', 'string', 'max:255', Rule::unique('destinations', 'slug')->ignore($destination->id)],
             'name' => ['sometimes', 'string', 'max:255'],
+
             'categories' => ['sometimes', 'array'],
             'categories.*' => ['integer', 'exists:categories,id'],
+
             'detail' => ['sometimes'], // JSON string dari frontend
+
             'images' => ['sometimes', 'array'],
             'images.*.id' => ['nullable', 'integer', 'exists:destination_images,id'],
             'images.*.file' => ['nullable', 'file', 'image'],
@@ -132,22 +133,26 @@ class DestinationController extends Controller
             'images.*.is_cover' => ['nullable', 'boolean'],
         ]);
 
-        return DB::transaction(function () use ($data, $request, $destination) {
-            // Update destination fields
+        return DB::transaction(function () use ($validated, $request, $destination) {
+
+            // 1️⃣ Update field dasar
             $destination->update([
-                'slug' => $data['slug'] ?? $destination->slug,
-                'name' => $data['name'] ?? $destination->name,
+                'slug' => $validated['slug'] ?? $destination->slug,
+                'name' => $validated['name'] ?? $destination->name,
             ]);
 
-            // Update detail
+            // 2️⃣ Update detail
             if ($request->filled('detail')) {
                 $detail = json_decode($request->input('detail'), true);
+
                 if (is_array($detail)) {
+                    // ubah string kosong jadi null
                     foreach (['latitude', 'longitude', 'ticket_price'] as $numField) {
                         if (isset($detail[$numField]) && $detail[$numField] === '') {
                             $detail[$numField] = null;
                         }
                     }
+
                     $destination->detail()->updateOrCreate(
                         ['destination_id' => $destination->id],
                         $detail
@@ -155,61 +160,36 @@ class DestinationController extends Controller
                 }
             }
 
-            // Update categories
-            if (array_key_exists('categories', $data)) {
-                $destination->categories()->sync($data['categories'] ?? []);
+            // 3️⃣ Update kategori (pivot)
+            if (array_key_exists('categories', $validated)) {
+                $destination->categories()->sync($validated['categories'] ?? []);
             }
 
-            // Update images
+            // 4️⃣ Update / Simpan gambar
             if ($request->has('images')) {
-                $existingImageIds = [];
-                foreach ($request->input('images', []) as $i => $imgData) {
-                    $imageId = $imgData['id'] ?? null;
-                    $caption = $imgData['caption'] ?? null;
-                    $isCover = (bool) ($imgData['is_cover'] ?? false);
-
+                foreach ($request->file('images', []) as $i => $fileGroup) {
+                    // kalau images dikirim pakai struktur: images[0][file]
                     $file = $request->file("images.$i.file");
-                    $url = null;
+                    $caption = $request->input("images.$i.caption");
+                    $isCover = (bool) $request->input("images.$i.is_cover");
 
-                    if ($imageId) {
-                        $image = $destination->images()->find($imageId);
-                        if ($image) {
-                            if ($file instanceof \Illuminate\Http\UploadedFile) {
-                                // Delete old file
-                                if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
-                                    Storage::disk('public')->delete($image->image_url);
-                                }
-                                $url = $file->store('destinations', 'public');
-                            } else {
-                                $url = $image->image_url;
-                            }
-                            $image->update([
-                                'caption' => $caption,
-                                'is_cover' => $isCover,
-                                'image_url' => $url,
-                            ]);
-                            $existingImageIds[] = $image->id;
-                        }
-                    } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
+                    $url = null;
+                    if ($file instanceof \Illuminate\Http\UploadedFile) {
                         $url = $file->store('destinations', 'public');
-                        $newImage = $destination->images()->create([
-                            'caption' => $caption,
-                            'is_cover' => $isCover,
-                            'image_url' => $url,
-                        ]);
-                        $existingImageIds[] = $newImage->id;
                     }
+
+                    $destination->images()->create([
+                        'image_url' => $url,
+                        'caption' => $caption,
+                        'is_cover' => $isCover,
+                    ]);
                 }
-                // Delete images not present in the request
-                $destination->images()->whereNotIn('id', $existingImageIds)->get()->each(function ($image) {
-                    if ($image->image_url && Storage::disk('public')->exists($image->image_url)) {
-                        Storage::disk('public')->delete($image->image_url);
-                    }
-                    $image->delete();
-                });
             }
 
-            return response()->json($destination->load(['detail', 'categories', 'images']));
+            return response()->json(
+                $destination->load(['detail', 'categories', 'images']),
+                200
+            );
         });
     }
 

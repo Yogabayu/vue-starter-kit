@@ -12,17 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import DestinationDialog from './components/DestinationDialog.vue';
 
-import {
-    Table,
-    TableBody,
-    TableCaption,
-    TableCell,
-    TableFooter,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { route } from 'ziggy-js';
+import DestinationTable from './components/DestinationTable.vue';
 function getCookie(name: string) {
     const m = document.cookie.match(
         new RegExp(
@@ -165,7 +156,7 @@ function toggleCategory(id: number) {
     const i = list.indexOf(id);
     if (i === -1) list.push(id);
     else list.splice(i, 1);
-    // force reactivity in some edge cases
+
     form.categories = [...list];
 }
 
@@ -294,11 +285,8 @@ function openCreate() {
 }
 
 async function openEdit(row: DestinationRow) {
-    await fetchCategories();
-    await updateDistricts();
-    await nextTick(() => {
-        getDistricts();
-    });
+    getDistricts();
+
     selected.value = row;
     form.id = row.id;
     form.name = row.name;
@@ -317,15 +305,12 @@ async function saveDestination() {
             formData.append('slug', form.slug);
             formData.append('name', form.name);
 
-            // categories
             form.categories.forEach((id) =>
                 formData.append('categories[]', id.toString()),
             );
 
-            // detail
             formData.append('detail', JSON.stringify(form.detail));
 
-            // images (pending)
             pendingImages.value.forEach((img, i) => {
                 formData.append(`images[${i}][file]`, img.file);
                 formData.append(`images[${i}][caption]`, img.caption || '');
@@ -345,7 +330,6 @@ async function saveDestination() {
             if (!res.ok) throw new Error('Failed to create destination');
             toast.success('Destination created');
 
-            // bersihkan form
             pendingImages.value = [];
             isEditOpen.value = false;
             router.reload({ only: ['destinations'] });
@@ -355,15 +339,12 @@ async function saveDestination() {
             formData.append('name', form.name);
             formData.append('slug', form.slug);
 
-            // categories
             form.categories.forEach((id) =>
                 formData.append('categories[]', id.toString()),
             );
 
-            // detail
             formData.append('detail', JSON.stringify(form.detail));
 
-            // images (pending)
             if (pendingImages.value.length > 0) {
                 pendingImages.value.forEach((img, i) => {
                     formData.append(`images[${i}][file]`, img.file);
@@ -378,7 +359,7 @@ async function saveDestination() {
             const res = await fetch(
                 route('destinations.update', { destination: form.id }),
                 {
-                    method: 'PUT',
+                    method: 'POST',
                     credentials: 'same-origin',
                     headers: csrfHeaders({ Accept: 'application/json' }),
                     body: formData,
@@ -388,7 +369,6 @@ async function saveDestination() {
             if (!res.ok) throw new Error('Failed to update destination');
             toast.success('Destination updated');
 
-            // bersihkan form
             pendingImages.value = [];
             isEditOpen.value = false;
             router.reload({ only: ['destinations'] });
@@ -446,7 +426,6 @@ function onFileChange(e: Event) {
         });
     }
 
-    // Reset field agar bisa pilih file yang sama lagi
     input.value = '';
     uploadCaption.value = '';
 }
@@ -529,7 +508,6 @@ async function setCover(item: DisplayImage) {
 }
 
 function updateFormFromDialog(v: any) {
-    // Merge emitted form state into useForm without replacing the instance
     form.id = v?.id ?? form.id;
     form.name = v?.name ?? form.name;
     form.slug = v?.slug ?? form.slug;
@@ -569,118 +547,18 @@ onMounted(() => {
             <div
                 class="rounded-xl border border-sidebar-border/70 p-2 dark:border-sidebar-border"
             >
-                <Table>
-                    <TableCaption>Total: {{ total }}</TableCaption>
-
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead
-                                class="cursor-pointer select-none"
-                                @click="setSort('id')"
-                            >
-                                ID
-                                <span v-if="sortKey === 'id'"
-                                    >({{ sortDir }})</span
-                                >
-                            </TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none"
-                                @click="setSort('name')"
-                            >
-                                Name
-                                <span v-if="sortKey === 'name'"
-                                    >({{ sortDir }})</span
-                                >
-                            </TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none"
-                                @click="setSort('created_at')"
-                            >
-                                Created At
-                                <span v-if="sortKey === 'created_at'"
-                                    >({{ sortDir }})</span
-                                >
-                            </TableHead>
-                            <TableHead class="text-right"> Action </TableHead>
-                        </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                        <TableRow v-for="d in rows" :key="d.id">
-                            <TableCell>{{
-                                (page - 1) * perPage + rows.indexOf(d) + 1
-                            }}</TableCell>
-                            <TableCell>{{ d.name }}</TableCell>
-
-                            <TableCell>{{
-                                new Date(d.created_at).toLocaleDateString()
-                            }}</TableCell>
-                            <TableCell class="text-right">
-                                <div class="flex justify-end gap-2">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        class="hover:cursor-pointer"
-                                        @click="openEdit(d)"
-                                        >Edit</Button
-                                    >
-                                    <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        class="hover:cursor-pointer"
-                                        @click="removeDestination(d.id)"
-                                        >Delete</Button
-                                    >
-                                </div>
-                            </TableCell>
-                        </TableRow>
-
-                        <TableRow v-if="rows.length === 0">
-                            <TableCell
-                                colspan="4"
-                                class="text-center text-muted-foreground"
-                            >
-                                No data
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-
-                    <TableFooter>
-                        <TableRow>
-                            <TableCell colspan="6">
-                                <div
-                                    class="flex items-center justify-between gap-3"
-                                >
-                                    <div class="text-sm text-muted-foreground">
-                                        Page {{ page }} / {{ lastPage }}
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            :disabled="page <= 1"
-                                            @click="page--"
-                                            >Prev</Button
-                                        >
-                                        <Button
-                                            variant="outline"
-                                            :disabled="page >= lastPage"
-                                            @click="page++"
-                                            >Next</Button
-                                        >
-                                        <select
-                                            v-model.number="perPage"
-                                            class="rounded-md border bg-background px-2 py-1 text-foreground dark:bg-muted dark:text-foreground"
-                                        >
-                                            <option :value="5">5</option>
-                                            <option :value="10">10</option>
-                                            <option :value="25">25</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableFooter>
-                </Table>
+                <DestinationTable
+                    :rows="rows"
+                    :total="total"
+                    :page="page"
+                    :per-page="perPage"
+                    :last-page="lastPage"
+                    sort-key="id"
+                    sort-dir="asc"
+                    @edit="openEdit"
+                    @delete="removeDestination"
+                    @update:sort="setSort"
+                />
             </div>
         </div>
 
