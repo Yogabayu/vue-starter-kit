@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { index as destinationsIndex } from '@/routes/destinations';
 import type { BreadcrumbItem } from '@/types';
@@ -11,6 +17,7 @@ import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import DestinationDialog from './components/DestinationDialog.vue';
+import DetailDialog from './components/DetailDialog.vue';
 
 import { route } from 'ziggy-js';
 import DestinationTable from './components/DestinationTable.vue';
@@ -119,6 +126,7 @@ const sortDir = ref<'asc' | 'desc'>('asc');
 const page = ref(1);
 const perPage = ref(10);
 const isEditOpen = ref(false);
+const isDetailOpen = ref(false);
 const isUploading = ref(false);
 const categories = ref<Array<{ id: number; name: string }>>([]);
 const images = ref<ImageDestination[]>([]);
@@ -137,6 +145,7 @@ const form = useForm({
     name: '',
     slug: '',
     categories: [] as number[],
+    images: [] as ImageDestination[],
     detail: {
         description: '',
         address: '',
@@ -279,7 +288,7 @@ function openCreate() {
         open_hours: '',
         close_hours: '',
         phone: '',
-        status: 'published',
+        status: 'pending',
     } as any;
     isEditOpen.value = true;
 }
@@ -515,6 +524,13 @@ function updateFormFromDialog(v: any) {
     if (v?.detail) form.detail = v.detail;
 }
 
+function detailsOf(row: DestinationRow) {
+    form.detail = row.detail;
+    form.images = row.images || [];
+    form.name = row.name;
+    isDetailOpen.value = true;
+}
+
 onMounted(() => {
     fetchCategories();
 });
@@ -529,16 +545,26 @@ onMounted(() => {
         >
             <div class="flex flex-wrap items-center gap-3">
                 <h2 class="text-xl font-semibold">Destination List</h2>
-                <Button
-                    size="sm"
-                    class="border border-gray-300 bg-white text-gray-900 hover:cursor-pointer dark:border-gray-700 dark:bg-muted dark:text-gray-100"
-                    @click="openCreate"
-                >
-                    <BadgePlus
-                        class="h-5 w-5 text-gray-900 dark:text-gray-100"
-                    />
-                    add
-                </Button>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button
+                                size="sm"
+                                class="border border-gray-300 bg-white text-gray-900 hover:cursor-pointer dark:border-gray-700 dark:bg-muted dark:text-gray-100"
+                                @click="openCreate"
+                            >
+                                <BadgePlus
+                                    class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                                />
+                                add
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Add Destination</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
                 <div class="ml-auto w-full max-w-xs">
                     <Input v-model="q" placeholder="Search destinations." />
                 </div>
@@ -558,6 +584,7 @@ onMounted(() => {
                     @edit="openEdit"
                     @delete="removeDestination"
                     @update:sort="setSort"
+                    @details="detailsOf"
                 />
             </div>
         </div>
@@ -579,6 +606,13 @@ onMounted(() => {
             @set-cover="setCover"
             @toggle-category="toggleCategory"
             @remove-category="removeCategory"
+            @delete-destination="removeDestination"
+        />
+        <DetailDialog
+            v-model:open="isDetailOpen"
+            :detail="form.detail"
+            :images="form.images"
+            :title="form.name"
         />
     </AppLayout>
 </template>

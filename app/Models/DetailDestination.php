@@ -35,4 +35,14 @@ class DetailDestination extends Model
     {
         return $this->belongsTo(Destination::class);
     }
+
+    public function village()
+    {
+        return $this->belongsTo(Village::class, 'village', 'code');
+    }
+
+    public function district()
+    {
+        return $this->belongsTo(District::class, 'district', 'code');
+    }
 }

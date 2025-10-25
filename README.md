@@ -184,7 +184,7 @@ server {
 
 If you deploy with SSR:
 
-- Build SSR bundle: `npm run build:ssr`
+- Build SSR bundle: `npm run build:ssr`s
 - Run SSR server: `php artisan inertia:start-ssr` (daemonize with Supervisor/PM2)
 
 ## Troubleshooting
@@ -193,6 +193,9 @@ If you deploy with SSR:
 - Vite build errors: Ensure Node 18.18+ and a clean `node_modules` (`rm -rf node_modules && npm ci`).
 - 500 after deploy: Run `php artisan config:clear route:clear view:clear` then `php artisan optimize`.
 - Missing storage files: `php artisan storage:link`.
+
+## database schema
+https://dbdiagram.io/d/DBdesign-674b2c02e9daa85aca383572
 
 ## License
 

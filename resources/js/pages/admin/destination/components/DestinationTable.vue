@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import {
     Table,
     TableBody,
@@ -8,11 +9,16 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { ref, watch } from 'vue'
+} from '@/components/ui/table';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {  ListCollapse, Pencil, Trash2 } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 
-// Props dari parent
 const props = defineProps({
     rows: { type: Array, required: true },
     total: { type: Number, default: 0 },
@@ -22,28 +28,34 @@ const props = defineProps({
     sortKey: { type: String, default: 'id' },
     sortDir: { type: String, default: 'asc' },
     loading: { type: Boolean, default: false },
-})
+});
 
-// Events biar parent bisa dengar perubahan
-const emit = defineEmits(['update:page', 'update:perPage', 'update:sort', 'edit', 'delete'])
+const emit = defineEmits([
+    'update:page',
+    'update:perPage',
+    'update:sort',
+    'edit',
+    'delete',
+    'details',
+]);
 
-const page = ref(props.page)
-const perPage = ref(props.perPage)
-const sortKey = ref(props.sortKey)
-const sortDir = ref<'asc' | 'desc'>(props.sortDir as 'asc' | 'desc')
+const page = ref(props.page);
+const perPage = ref(props.perPage);
+const sortKey = ref(props.sortKey);
+const sortDir = ref<'asc' | 'desc'>(props.sortDir as 'asc' | 'desc');
 
 function setSort(key: string) {
     if (sortKey.value === key) {
-        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
     } else {
-        sortKey.value = key
-        sortDir.value = 'asc'
+        sortKey.value = key;
+        sortDir.value = 'asc';
     }
-    emit('update:sort', { key: sortKey.value, dir: sortDir.value })
+    emit('update:sort', { key: sortKey.value, dir: sortDir.value });
 }
 
-watch(page, (val) => emit('update:page', val))
-watch(perPage, (val) => emit('update:perPage', val))
+watch(page, (val) => emit('update:page', val));
+watch(perPage, (val) => emit('update:perPage', val));
 </script>
 
 <template>
@@ -75,7 +87,19 @@ watch(perPage, (val) => emit('update:perPage', val))
                         @click="setSort('details.address')"
                     >
                         Address
-                        <span v-if="sortKey === 'address'">({{ sortDir }})</span>
+                        <span v-if="sortKey === 'address'"
+                            >({{ sortDir }})</span
+                        >
+                    </TableHead>
+
+                    <TableHead
+                        class="cursor-pointer select-none"
+                        @click="setSort('details.status')"
+                    >
+                        Status
+                        <span v-if="sortKey === 'details.status'"
+                            >({{ sortDir }})</span
+                        >
                     </TableHead>
 
                     <TableHead
@@ -83,7 +107,9 @@ watch(perPage, (val) => emit('update:perPage', val))
                         @click="setSort('created_at')"
                     >
                         Created At
-                        <span v-if="sortKey === 'created_at'">({{ sortDir }})</span>
+                        <span v-if="sortKey === 'created_at'"
+                            >({{ sortDir }})</span
+                        >
                     </TableHead>
 
                     <TableHead class="text-center">Action</TableHead>
@@ -93,55 +119,89 @@ watch(perPage, (val) => emit('update:perPage', val))
             <!-- Body -->
             <TableBody>
                 <TableRow v-if="loading">
-                    <TableCell colspan="5" class="text-center text-muted-foreground">
+                    <TableCell
+                        colspan="6"
+                        class="text-center text-muted-foreground"
+                    >
                         Loading...
                     </TableCell>
                 </TableRow>
 
-                <TableRow
-                    v-for="d in rows"
-                    :key="d.id"
-                    v-else
-                >
+                <TableRow v-for="d in rows" :key="d.id" v-else>
                     <TableCell>
                         {{ (page - 1) * perPage + rows.indexOf(d) + 1 }}
                     </TableCell>
                     <TableCell>{{ d.name }}</TableCell>
                     <TableCell>{{ d.detail.address }}</TableCell>
+                    <TableCell>{{ d.detail.status ? d.detail.status : 'N/A' }}</TableCell>
                     <TableCell>
-                        <!-- {{ d }} -->
                         {{ new Date(d.created_at).toLocaleDateString() }}
                     </TableCell>
                     <TableCell class="text-right">
                         <div class="flex justify-end gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                >Details</Button
-                            >
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                >Images</Button
-                            >
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                @click="$emit('edit', d)"
-                                >Edit</Button
-                            >
-                            <Button
-                                size="sm"
-                                variant="destructive"
-                                @click="$emit('delete', d.id)"
-                                >Delete</Button
-                            >
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            @click="$emit('details', d)"
+                                        >
+                                            <ListCollapse
+                                                class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                                            />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>See details</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            @click="$emit('edit', d)"
+                                        >
+                                            <Pencil
+                                                class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                                            />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Edit data</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            @click="$emit('delete', d.id)"
+                                        >
+                                            <Trash2
+                                                class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                                            />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Delete data</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                     </TableCell>
                 </TableRow>
 
                 <TableRow v-if="!loading && rows.length === 0">
-                    <TableCell colspan="4" class="text-center text-muted-foreground">
+                    <TableCell
+                        colspan="4"
+                        class="text-center text-muted-foreground"
+                    >
                         No data
                     </TableCell>
                 </TableRow>
@@ -150,7 +210,7 @@ watch(perPage, (val) => emit('update:perPage', val))
             <!-- Footer -->
             <TableFooter>
                 <TableRow>
-                    <TableCell colspan="5">
+                    <TableCell colspan="6">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-muted-foreground">
                                 Page {{ page }} / {{ lastPage }}

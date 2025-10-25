@@ -19,7 +19,7 @@ class DestinationController extends Controller
     public function index(): InertiaResponse
     {
 
-        $destinations = Destination::with(['detail', 'coverImage', 'categories'])
+        $destinations = Destination::with(['detail', 'detail.village', 'detail.district', 'coverImage', 'images', 'categories'])
             ->latest()
             ->get();
 
@@ -69,7 +69,7 @@ class DestinationController extends Controller
                 $detail = json_decode($request->input('detail'), true);
                 if (is_array($detail)) {
                     // Normalisasi data: ubah string kosong jadi null
-                    foreach (['latitude', 'longitude', 'ticket_price'] as $numField) {
+                    foreach (['ticket_price'] as $numField) {
                         if (isset($detail[$numField]) && $detail[$numField] === '') {
                             $detail[$numField] = null;
                         }
