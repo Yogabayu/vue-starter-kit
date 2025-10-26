@@ -13,7 +13,7 @@ import { BadgePlus } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 
-// shadcn-vue primitives
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import DestinationDialog from './components/DestinationDialog.vue';
@@ -60,21 +60,22 @@ type ApiStyle = {
 };
 
 const districts = ref([] as ApiStyle[]);
+const facilities = ref([] as { id: number; name: string }[]);
+const tags = ref([] as { id: number; name: string }[]);
 
 type DetailDestination = {
     id: number;
     destination_id: number;
     description: string;
     address: string;
-    village: string;
-    district: string;
-    maps_link: string;
-    ticket_price: string;
-    opening_hours: string;
-    close_hours: string;
-    cover_image: string;
+    village_id: number | null;
+    village?: any;
+    map_url: string;
+    ticket_price: string | number | null;
+    currency?: string | null;
     phone: string;
-    status: string;
+    status: 'draft' | 'published' | 'pending';
+    published_at?: string | null;
 };
 async function updateDistricts() {
     try {
@@ -111,6 +112,9 @@ type DestinationRow = {
     detail: DetailDestination;
     images?: ImageDestination[];
     categories?: { id: number; name: string }[];
+    facilities?: { id: number; name: string }[];
+    tags?: { id: number; name: string }[];
+    open_hours?: any[];
     created_at: string;
 };
 
@@ -119,7 +123,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Destinations', href: destinationsIndex().url },
 ];
 
-// state
+
 const q = ref('');
 const sortKey = ref<keyof DestinationRow>('id');
 const sortDir = ref<'asc' | 'desc'>('asc');
@@ -145,19 +149,31 @@ const form = useForm({
     name: '',
     slug: '',
     categories: [] as number[],
+    facilities: [] as number[],
+    tags: [] as number[],
     images: [] as ImageDestination[],
     detail: {
         description: '',
         address: '',
-        village: '',
-        district: '',
-        maps_link: '',
+        village_id: null,
+        map_url: '',
         ticket_price: '',
-        open_hours: '',
-        close_hours: '',
+        currency: 'IDR',
         phone: '',
         status: 'draft',
+
+        district: '',
+        village: '',
     } as any,
+    open_hours: [
+        { day_of_week: 1, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 2, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 3, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 4, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 5, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 6, is_closed: false, open_time: '', close_time: '', notes: '' },
+        { day_of_week: 7, is_closed: false, open_time: '', close_time: '', notes: '' },
+    ],
 });
 
 function toggleCategory(id: number) {
@@ -169,8 +185,34 @@ function toggleCategory(id: number) {
     form.categories = [...list];
 }
 
+function toggleFacility(id: number) {
+    const list = form.facilities ?? [];
+    const i = list.indexOf(id);
+    if (i === -1) list.push(id);
+    else list.splice(i, 1);
+
+    form.facilities = [...list];
+}
+
+function toggleTag(id: number) {
+    const list = form.tags ?? [];
+    const i = list.indexOf(id);
+    if (i === -1) list.push(id);
+    else list.splice(i, 1);
+
+    form.tags = [...list];
+}
+
 function removeCategory(id: number) {
     form.categories = (form.categories ?? []).filter((x) => x !== id);
+}
+
+function removeFacility(id: number) {
+    form.facilities = (form.facilities ?? []).filter((x) => x !== id);
+}
+
+function removeTag(id: number) {
+    form.tags = (form.tags ?? []).filter((x) => x !== id);
 }
 
 const filteredDestinations = computed(() => {
@@ -182,7 +224,7 @@ const filteredDestinations = computed(() => {
         destination.name.toLowerCase().includes(query),
     );
 });
-// sort
+
 const sorted = computed(() => {
     const arr = [...filteredDestinations.value];
     arr.sort((a, b) => {
@@ -199,7 +241,7 @@ const sorted = computed(() => {
     return arr;
 });
 
-// paginate
+
 const total = computed(() => sorted.value.length);
 const lastPage = computed(() =>
     Math.max(1, Math.ceil(total.value / perPage.value)),
@@ -235,6 +277,22 @@ async function fetchCategories() {
     }
 }
 
+async function fetchFacilities() {
+    try {
+        const res = await fetch(route('facilities.index'), { headers: { Accept: 'application/json' } });
+        const data = await res.json();
+        facilities.value = Array.isArray(data?.data) ? data.data : [];
+    } catch (e) { console.error(e); }
+}
+
+async function fetchTags() {
+    try {
+        const res = await fetch(route('tags.index'), { headers: { Accept: 'application/json' } });
+        const data = await res.json();
+        tags.value = Array.isArray(data?.data) ? data.data : [];
+    } catch (e) { console.error(e); }
+}
+
 async function fetchDestinationDetail(id: number) {
     try {
         const res = await fetch(
@@ -247,18 +305,42 @@ async function fetchDestinationDetail(id: number) {
         if (Array.isArray(data?.categories)) {
             form.categories = data.categories.map((c: any) => c.id);
         }
+        if (Array.isArray(data?.facilities)) {
+            form.facilities = data.facilities.map((f: any) => f.id);
+        }
+        if (Array.isArray(data?.tags)) {
+            form.tags = data.tags.map((t: any) => t.id);
+        }
+        if (Array.isArray(data?.open_hours)) {
+
+            const base = [...form.open_hours];
+            data.open_hours.forEach((h: any) => {
+                const i = h.day_of_week - 1;
+                if (i >= 0 && i < base.length) {
+                    base[i] = {
+                        day_of_week: h.day_of_week,
+                        is_closed: !!h.is_closed,
+                        open_time: h.open_time ?? '',
+                        close_time: h.close_time ?? '',
+                        notes: h.notes ?? '',
+                    };
+                }
+            });
+            form.open_hours = base;
+        }
         if (data?.detail) {
             form.detail = {
                 description: data.detail.description ?? '',
                 address: data.detail.address ?? '',
-                village: data.detail.village ?? '',
-                district: data.detail.district ?? '',
-                maps_link: data.detail.maps_link ?? '',
+
+                district_id: data.detail.village?.district?.code ?? '',
+                village_id: data.detail.village?.code ?? '',
+                map_url: data.detail.map_url ?? data.detail.maps_link ?? '',
                 ticket_price: data.detail.ticket_price ?? '',
-                open_hours: data.detail.open_hours ?? '',
-                close_hours: data.detail.close_hours ?? '',
+                currency: data.detail.currency ?? 'IDR',
                 phone: data.detail.phone ?? '',
                 status: data.detail.status ?? 'published',
+                published_at: data.detail.published_at ?? null,
             } as any;
         }
     } catch (e) {
@@ -278,17 +360,18 @@ function openCreate() {
     form.name = '';
     form.slug = '';
     form.categories = [];
+    form.facilities = [];
+    form.tags = [];
     form.detail = {
         description: '',
         address: '',
-        village: '',
-        district: '',
-        maps_link: '',
+        village_id: null,
+        map_url: '',
         ticket_price: '',
-        open_hours: '',
-        close_hours: '',
+        currency: 'IDR',
         phone: '',
         status: 'pending',
+        district_id: '',
     } as any;
     isEditOpen.value = true;
 }
@@ -300,7 +383,6 @@ async function openEdit(row: DestinationRow) {
     form.id = row.id;
     form.name = row.name;
     form.slug = row.slug;
-    form.categories = (row.categories || []).map((c: any) => c.id);
     await fetchDestinationDetail(row.id);
     isEditOpen.value = true;
 }
@@ -317,8 +399,15 @@ async function saveDestination() {
             form.categories.forEach((id) =>
                 formData.append('categories[]', id.toString()),
             );
+            form.facilities.forEach((id) =>
+                formData.append('facilities[]', id.toString()),
+            );
+            form.tags.forEach((id) =>
+                formData.append('tags[]', id.toString()),
+            );
 
             formData.append('detail', JSON.stringify(form.detail));
+            formData.append('open_hours', JSON.stringify(form.open_hours));
 
             pendingImages.value.forEach((img, i) => {
                 formData.append(`images[${i}][file]`, img.file);
@@ -328,6 +417,11 @@ async function saveDestination() {
                     img.is_cover ? '1' : '0',
                 );
             });
+
+            console.log('Form Data Entries:');
+            for (const pair of formData.entries()) {
+                console.log(`${pair[0]}: ${pair[1]}`);
+            }
 
             const res = await fetch(route('destinations.store'), {
                 method: 'POST',
@@ -351,8 +445,15 @@ async function saveDestination() {
             form.categories.forEach((id) =>
                 formData.append('categories[]', id.toString()),
             );
+            form.facilities.forEach((id) =>
+                formData.append('facilities[]', id.toString()),
+            );
+            form.tags.forEach((id) =>
+                formData.append('tags[]', id.toString()),
+            );
 
             formData.append('detail', JSON.stringify(form.detail));
+            formData.append('open_hours', JSON.stringify(form.open_hours));
 
             if (pendingImages.value.length > 0) {
                 pendingImages.value.forEach((img, i) => {
@@ -409,11 +510,11 @@ async function removeDestination(id: number) {
     }
 }
 
-// image upload
+
 const uploadFile = ref<File | null>(null);
 const uploadCaption = ref('');
 
-// uploadFile kept only for compatibility; pending items manage their own blob URLs
+
 
 function onFileChange(e: Event) {
     const input = e.target as HTMLInputElement | null;
@@ -521,6 +622,9 @@ function updateFormFromDialog(v: any) {
     form.name = v?.name ?? form.name;
     form.slug = v?.slug ?? form.slug;
     if (Array.isArray(v?.categories)) form.categories = v.categories;
+    if (Array.isArray(v?.facilities)) form.facilities = v.facilities;
+    if (Array.isArray(v?.tags)) form.tags = v.tags;
+    if (Array.isArray(v?.open_hours)) form.open_hours = v.open_hours;
     if (v?.detail) form.detail = v.detail;
 }
 
@@ -533,6 +637,8 @@ function detailsOf(row: DestinationRow) {
 
 onMounted(() => {
     fetchCategories();
+    fetchFacilities();
+    fetchTags();
 });
 </script>
 
@@ -596,6 +702,8 @@ onMounted(() => {
             :form="form"
             @update:form="updateFormFromDialog"
             :categories="categories"
+            :facilities="facilities"
+            :tags="tags"
             :images="displayImages"
             :isUploading="isUploading"
             :uploadFile="uploadFile"
@@ -606,6 +714,10 @@ onMounted(() => {
             @set-cover="setCover"
             @toggle-category="toggleCategory"
             @remove-category="removeCategory"
+            @toggle-facility="toggleFacility"
+            @remove-facility="removeFacility"
+            @toggle-tag="toggleTag"
+            @remove-tag="removeTag"
             @delete-destination="removeDestination"
         />
         <DetailDialog

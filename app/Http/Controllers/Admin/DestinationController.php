@@ -13,13 +13,16 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Illuminate\Support\Str;
+use App\Models\DestinationOpenHour;
+use App\Models\District;
+use App\Models\Village;
 
 class DestinationController extends Controller
 {
     public function index(): InertiaResponse
     {
 
-        $destinations = Destination::with(['detail', 'detail.village', 'detail.district', 'coverImage', 'images', 'categories'])
+        $destinations = Destination::with(['detail', 'detail.village', 'detail.village.district', 'coverImage', 'images', 'categories', 'openHours'])
             ->latest()
             ->get();
 
@@ -30,14 +33,13 @@ class DestinationController extends Controller
 
     public function show($id)
     {
-        $destination = Destination::with(['detail', 'images', 'categories'])->findOrFail($id);
+        $destination = Destination::with(['detail', 'detail.village', 'detail.village.district', 'categories', 'facilities', 'tags', 'openHours', 'images'])->findOrFail($id);
         return response()->json($destination);
     }
 
 
     public function store(Request $request)
     {
-        // 1️⃣ Validasi dasar
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:destinations,slug'],
@@ -46,20 +48,26 @@ class DestinationController extends Controller
             'categories' => ['array'],
             'categories.*' => ['integer', 'exists:categories,id'],
 
-            'detail' => ['nullable'], // nanti di-decode manual
+            'facilities' => ['array'],
+            'facilities.*' => ['integer', 'exists:facilities,id'],
 
-            // Validasi file upload
+            'tags' => ['array'],
+            'tags.*' => ['integer', 'exists:tags,id'],
+
+            'detail' => ['nullable'],
+            'open_hours' => ['nullable', 'string'],
+
             'images' => ['array'],
-            'images.*.file' => ['nullable', 'file', 'image'], // max 2MB
+            'images.*.file' => ['nullable', 'file', 'image'],
             'images.*.caption' => ['nullable', 'string', 'max:255'],
             'images.*.is_cover' => ['nullable', 'boolean'],
         ]);
 
         return DB::transaction(function () use ($request, $validated) {
-            // 2️⃣ Generate slug otomatis
-            $slug = $validated['slug'] ?? Str::slug($validated['name']);
 
-            // 3️⃣ Buat destinasi utama
+            $slug = $validated['slug'] ?? Str::slug($validated['name'] . '-' . time());
+
+
             $destination = Destination::create([
                 'user_id' => $validated['user_id'],
                 'slug' => $slug,
@@ -68,27 +76,94 @@ class DestinationController extends Controller
             if ($request->filled('detail')) {
                 $detail = json_decode($request->input('detail'), true);
                 if (is_array($detail)) {
-                    // Normalisasi data: ubah string kosong jadi null
+
+                    if (isset($detail['maps_link']) && empty($detail['map_url'])) {
+                        $detail['map_url'] = $detail['maps_link'];
+                        unset($detail['maps_link']);
+                    }
+
                     foreach (['ticket_price'] as $numField) {
-                        if (isset($detail[$numField]) && $detail[$numField] === '') {
-                            $detail[$numField] = null;
+                        if (array_key_exists($numField, $detail)) {
+                            $detail[$numField] = $detail[$numField] === '' ? null : $detail[$numField];
                         }
                     }
 
-                    $destination->detail()->create($detail);
+                    if (empty($detail['district_id']) || !is_numeric($detail['district_id'])) {
+                        $districtCode = $detail['district'] ?? ($detail['district_id'] ?? null);
+                        if ($districtCode) {
+                            $district = District::where('code', $districtCode)->first();
+                            if ($district) {
+                                $detail['district_id'] = $district->id;
+                            } else {
+                                unset($detail['district_id']);
+                            }
+                        }
+                    }
+
+                    if (empty($detail['village_id']) || !is_numeric($detail['village_id'])) {
+                        $villageCode = $detail['village'] ?? ($detail['village_id'] ?? null);
+                        if ($villageCode) {
+                            $village = Village::where('code', $villageCode)->first();
+                            if ($village) {
+                                $detail['village_id'] = $village->id;
+                            } else {
+                                unset($detail['village_id']);
+                            }
+                        }
+                    }
+                    $payload = collect($detail)->only([
+                        'description',
+                        'address',
+                        'village_id',
+                        'district_id',
+                        'map_url',
+                        'ticket_price',
+                        'currency',
+                        'phone',
+                        'status',
+                        'published_at'
+                    ])->toArray();
+                    $destination->detail()->create($payload);
                 }
             }
 
-
-            // 5️⃣ Simpan kategori (pivot)
             if (!empty($validated['categories'])) {
                 $destination->categories()->sync($validated['categories']);
             }
 
-            // 6️⃣ Simpan gambar
+            if (!empty($validated['facilities'])) {
+                $destination->facilities()->sync($validated['facilities']);
+            }
+
+            if (!empty($validated['tags'])) {
+                $destination->tags()->sync($validated['tags']);
+            }
+
+
+            if ($request->filled('open_hours')) {
+                $oh = json_decode($request->string('open_hours'), true);
+                if (is_array($oh)) {
+                    foreach ($oh as $row) {
+                        if (!isset($row['day_of_week'])) continue;
+                        $dow = (int) $row['day_of_week'];
+                        if ($dow < 1 || $dow > 7) continue;
+                        $destination->openHours()->updateOrCreate(
+                            ['day_of_week' => $dow],
+                            [
+                                'open_time' => $row['is_closed'] ? null : ($row['open_time'] ?? null),
+                                'close_time' => $row['is_closed'] ? null : ($row['close_time'] ?? null),
+                                'is_closed' => (bool) ($row['is_closed'] ?? false),
+                                'notes' => $row['notes'] ?? null,
+                            ],
+                        );
+                    }
+                }
+            }
+
+
             if ($request->has('images')) {
                 foreach ($request->file('images', []) as $i => $fileGroup) {
-                    // kalau images dikirim pakai struktur: images[0][file]
+
                     $file = $request->file("images.$i.file");
                     $caption = $request->input("images.$i.caption");
                     $isCover = (bool) $request->input("images.$i.is_cover");
@@ -124,7 +199,15 @@ class DestinationController extends Controller
             'categories' => ['sometimes', 'array'],
             'categories.*' => ['integer', 'exists:categories,id'],
 
-            'detail' => ['sometimes'], // JSON string dari frontend
+            'facilities' => ['sometimes', 'array'],
+            'facilities.*' => ['integer', 'exists:facilities,id'],
+
+            'tags' => ['sometimes', 'array'],
+            'tags.*' => ['integer', 'exists:tags,id'],
+
+            'detail' => ['sometimes'],
+
+            'open_hours' => ['sometimes', 'string'],
 
             'images' => ['sometimes', 'array'],
             'images.*.id' => ['nullable', 'integer', 'exists:destination_images,id'],
@@ -135,40 +218,106 @@ class DestinationController extends Controller
 
         return DB::transaction(function () use ($validated, $request, $destination) {
 
-            // 1️⃣ Update field dasar
+
             $destination->update([
                 'slug' => $validated['slug'] ?? $destination->slug,
                 'name' => $validated['name'] ?? $destination->name,
             ]);
 
-            // 2️⃣ Update detail
+
             if ($request->filled('detail')) {
                 $detail = json_decode($request->input('detail'), true);
-
                 if (is_array($detail)) {
-                    // ubah string kosong jadi null
-                    foreach (['latitude', 'longitude', 'ticket_price'] as $numField) {
-                        if (isset($detail[$numField]) && $detail[$numField] === '') {
-                            $detail[$numField] = null;
+                    if (isset($detail['maps_link']) && empty($detail['map_url'])) {
+                        $detail['map_url'] = $detail['maps_link'];
+                        unset($detail['maps_link']);
+                    }
+                    foreach (['ticket_price'] as $numField) {
+                        if (array_key_exists($numField, $detail)) {
+                            $detail[$numField] = $detail[$numField] === '' ? null : $detail[$numField];
                         }
                     }
-
+                    // Map district code -> id when district_id missing or non-numeric
+                    if (empty($detail['district_id']) || !is_numeric($detail['district_id'])) {
+                        $districtCode = $detail['district'] ?? ($detail['district_id'] ?? null);
+                        if ($districtCode) {
+                            $district = District::where('code', $districtCode)->first();
+                            if ($district) {
+                                $detail['district_id'] = $district->id;
+                            } else {
+                                unset($detail['district_id']);
+                            }
+                        }
+                    }
+                    // Map village code -> id when village_id missing or non-numeric
+                    if (empty($detail['village_id']) || !is_numeric($detail['village_id'])) {
+                        $villageCode = $detail['village'] ?? ($detail['village_id'] ?? null);
+                        if ($villageCode) {
+                            $village = Village::where('code', $villageCode)->first();
+                            if ($village) {
+                                $detail['village_id'] = $village->id;
+                            } else {
+                                unset($detail['village_id']);
+                            }
+                        }
+                    }
+                    $payload = collect($detail)->only([
+                        'description',
+                        'address',
+                        'district_id',
+                        'village_id',
+                        'map_url',
+                        'ticket_price',
+                        'currency',
+                        'phone',
+                        'status',
+                        'published_at'
+                    ])->toArray();
                     $destination->detail()->updateOrCreate(
                         ['destination_id' => $destination->id],
-                        $detail
+                        $payload
                     );
                 }
             }
 
-            // 3️⃣ Update kategori (pivot)
+
             if (array_key_exists('categories', $validated)) {
                 $destination->categories()->sync($validated['categories'] ?? []);
             }
 
-            // 4️⃣ Update / Simpan gambar
+            if (array_key_exists('facilities', $validated)) {
+                $destination->facilities()->sync($validated['facilities'] ?? []);
+            }
+
+            if (array_key_exists('tags', $validated)) {
+                $destination->tags()->sync($validated['tags'] ?? []);
+            }
+
+
+            if ($request->filled('open_hours')) {
+                $oh = json_decode($request->string('open_hours'), true);
+                if (is_array($oh)) {
+                    foreach ($oh as $row) {
+                        if (!isset($row['day_of_week'])) continue;
+                        $dow = (int) $row['day_of_week'];
+                        if ($dow < 1 || $dow > 7) continue;
+                        $destination->openHours()->updateOrCreate(
+                            ['day_of_week' => $dow],
+                            [
+                                'open_time' => $row['is_closed'] ? null : ($row['open_time'] ?? null),
+                                'close_time' => $row['is_closed'] ? null : ($row['close_time'] ?? null),
+                                'is_closed' => (bool) ($row['is_closed'] ?? false),
+                                'notes' => $row['notes'] ?? null,
+                            ],
+                        );
+                    }
+                }
+            }
+
+
             if ($request->has('images')) {
                 foreach ($request->file('images', []) as $i => $fileGroup) {
-                    // kalau images dikirim pakai struktur: images[0][file]
+
                     $file = $request->file("images.$i.file");
                     $caption = $request->input("images.$i.caption");
                     $isCover = (bool) $request->input("images.$i.is_cover");

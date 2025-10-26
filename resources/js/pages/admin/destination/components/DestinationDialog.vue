@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, unref, watch } from 'vue';
-// import { toast } from "vue-sonner"
-// import { route } from "ziggy-js"
 
-// Shadcn components
 import { Button } from '@/components/ui/button';
 import {
     Command,
@@ -36,13 +33,11 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { route } from 'ziggy-js';
 
-// Lucide icons
 import { Check, Trash2 } from 'lucide-vue-next';
 const fileEl = ref<HTMLInputElement | null>(null);
 
 const villages = ref([] as any[]);
 
-//district
 async function getVillages(idDistricts: string) {
     try {
         const response = await fetch(
@@ -61,11 +56,12 @@ async function getVillages(idDistricts: string) {
     }
 }
 
-// Props & emits
 const props = defineProps<{
     open: boolean;
     form: any;
     categories: Array<{ id: number; name: string }>;
+    facilities?: Array<{ id: number; name: string }>;
+    tags?: Array<{ id: number; name: string }>;
     images: Array<any>;
     isUploading: boolean;
     uploadFile: File | null;
@@ -76,10 +72,10 @@ const props = defineProps<{
 watch(
     () => props.open,
     (val) => {
-        if (val) {
-            getVillages(props.form.detail.district);
+        if (val && props.form?.detail?.district_id) {
+            getVillages(props.form.detail.district_id);
         }
-    }
+    },
 );
 
 const emit = defineEmits<{
@@ -92,15 +88,17 @@ const emit = defineEmits<{
     (e: 'toggle-category', id: number): void;
     (e: 'remove-category', id: number): void;
     (e: 'update:uploadCaption', value: string): void;
+    (e: 'toggle-facility', id: number): void;
+    (e: 'remove-facility', id: number): void;
+    (e: 'toggle-tag', id: number): void;
+    (e: 'remove-tag', id: number): void;
 }>();
 
-// two-way binding untuk dialog
 const isOpen = computed({
     get: () => props.open,
     set: (val) => emit('update:open', val),
 });
 
-// computed helper
 const selectedCategoryIds = computed(() => props.form?.categories ?? []);
 const selectedCategories = computed(() => {
     const map = new Map(props.categories.map((c) => [c.id, c]));
@@ -109,12 +107,23 @@ const selectedCategories = computed(() => {
         .filter(Boolean);
 });
 
-// no single-file preview: images list shows pending and persisted
+const selectedFacilityIds = computed(() => props.form?.facilities ?? []);
+const selectedFacilities = computed(() => {
+    const list = props.facilities ?? [];
+    const map = new Map(list.map((c) => [c.id, c]));
+    return selectedFacilityIds.value
+        .map((id: any) => map.get(id))
+        .filter(Boolean);
+});
 
-// Create a local, editable copy of the incoming form.
-// Unwrap refs to avoid cloning Vue Ref/Proxy objects.
+const selectedTagIds = computed(() => props.form?.tags ?? []);
+const selectedTags = computed(() => {
+    const list = props.tags ?? [];
+    const map = new Map(list.map((c) => [c.id, c]));
+    return selectedTagIds.value.map((id: any) => map.get(id)).filter(Boolean);
+});
+
 function deepClone<T>(v: T): T {
-    // Form only contains plain data; JSON clone is safe here
     return JSON.parse(JSON.stringify(v));
 }
 
@@ -125,7 +134,7 @@ watch(
     (newVal) => {
         syncingFromParent = true;
         localForm.value = deepClone(newVal);
-        // release the lock on next tick to avoid echoing back
+
         nextTick(() => {
             syncingFromParent = false;
         });
@@ -133,7 +142,6 @@ watch(
     { deep: true },
 );
 
-// propagate local form edits back to parent so parent payload stays in sync
 watch(
     localForm,
     (v) => {
@@ -145,13 +153,11 @@ watch(
 
 const localCaption = ref(props.uploadCaption);
 
-// kalau parent kirim prop baru, sinkronkan ulang
 watch(
     () => props.uploadCaption,
     (v) => (localCaption.value = v),
 );
 
-// kirim balik perubahan ke parent
 watch(localCaption, (v) => emit('update:uploadCaption', v));
 </script>
 
@@ -170,7 +176,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
             </DialogHeader>
 
             <div class="max-h-[calc(85vh-120px)] overflow-y-auto px-6 pb-4">
-                <FormField name="name">
+                <FormField v-slot="{ componentField }" name="name">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormItem>
                             <FormLabel
@@ -179,6 +185,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                             >
                             <FormControl>
                                 <Input
+                                    v-bind="componentField"
                                     v-model="localForm.name"
                                     type="text"
                                     placeholder="Destination Name"
@@ -187,10 +194,9 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
 
                         <FormItem>
-                            <FormLabel
-                                >Category
-                                <span class="text-red-500">*</span></FormLabel
-                            >
+                            <label class="text-sm font-medium">
+                                Category <span class="text-red-500">*</span>
+                            </label>
                             <Popover>
                                 <PopoverTrigger as-child>
                                     <FormControl>
@@ -277,11 +283,181 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
                     </div>
 
+                    <!-- Facilities and Tags -->
+                    <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormItem>
+                            <label class="text-sm font-medium"
+                                >Facilities</label
+                            >
+                            <Popover>
+                                <PopoverTrigger as-child>
+                                    <FormControl>
+                                        <Button
+                                            variant="outline"
+                                            class="w-full justify-between"
+                                        >
+                                            <span
+                                                v-if="selectedFacilities.length"
+                                            >
+                                                {{
+                                                    selectedFacilities
+                                                        .map((c: any) => c.name)
+                                                        .join(', ')
+                                                }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="text-muted-foreground"
+                                                >Select facilities...</span
+                                            >
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                    class="w-[--radix-popover-trigger-width] p-0"
+                                    align="start"
+                                >
+                                    <Command>
+                                        <CommandInput
+                                            placeholder="Search facility..."
+                                        />
+                                        <CommandEmpty
+                                            >No facility found.</CommandEmpty
+                                        >
+                                        <CommandGroup>
+                                            <CommandItem
+                                                v-for="c in props.facilities ||
+                                                []"
+                                                :key="c.id"
+                                                class="flex items-center justify-between"
+                                                @select="
+                                                    emit(
+                                                        'toggle-facility',
+                                                        c.id,
+                                                    )
+                                                "
+                                                :value="c.id"
+                                            >
+                                                <span>{{ c.name }}</span>
+                                                <Check
+                                                    v-if="
+                                                        selectedFacilityIds.includes(
+                                                            c.id,
+                                                        )
+                                                    "
+                                                    class="h-4 w-4"
+                                                />
+                                            </CommandItem>
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <div
+                                v-if="selectedFacilities.length"
+                                class="mt-2 flex flex-wrap gap-2"
+                            >
+                                <span
+                                    v-for="c in selectedFacilities"
+                                    :key="c.id"
+                                    class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs"
+                                >
+                                    {{ c.name }}
+                                    <button
+                                        type="button"
+                                        @click="emit('remove-facility', c.id)"
+                                        class="hover:text-destructive"
+                                    >
+                                        x
+                                    </button>
+                                </span>
+                            </div>
+                        </FormItem>
+
+                        <FormItem>
+                            <label class="text-sm font-medium">Tags</label>
+                            <Popover>
+                                <PopoverTrigger as-child>
+                                    <FormControl>
+                                        <Button
+                                            variant="outline"
+                                            class="w-full justify-between"
+                                        >
+                                            <span v-if="selectedTags.length">
+                                                {{
+                                                    selectedTags
+                                                        .map((c: any) => c.name)
+                                                        .join(', ')
+                                                }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="text-muted-foreground"
+                                                >Select tags...</span
+                                            >
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                    class="w-[--radix-popover-trigger-width] p-0"
+                                    align="start"
+                                >
+                                    <Command>
+                                        <CommandInput
+                                            placeholder="Search tag..."
+                                        />
+                                        <CommandEmpty
+                                            >No tag found.</CommandEmpty
+                                        >
+                                        <CommandGroup>
+                                            <CommandItem
+                                                v-for="c in props.tags || []"
+                                                :key="c.id"
+                                                class="flex items-center justify-between"
+                                                @select="
+                                                    emit('toggle-tag', c.id)
+                                                "
+                                                :value="c.id"
+                                            >
+                                                <span>{{ c.name }}</span>
+                                                <Check
+                                                    v-if="
+                                                        selectedTagIds.includes(
+                                                            c.id,
+                                                        )
+                                                    "
+                                                    class="h-4 w-4"
+                                                />
+                                            </CommandItem>
+                                        </CommandGroup>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <div
+                                v-if="selectedTags.length"
+                                class="mt-2 flex flex-wrap gap-2"
+                            >
+                                <span
+                                    v-for="c in selectedTags"
+                                    :key="c.id"
+                                    class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs"
+                                >
+                                    {{ c.name }}
+                                    <button
+                                        type="button"
+                                        @click="emit('remove-tag', c.id)"
+                                        class="hover:text-destructive"
+                                    >
+                                        x
+                                    </button>
+                                </span>
+                            </div>
+                        </FormItem>
+                    </div>
+
                     <FormItem class="mt-4">
-                        <FormLabel
-                            >Description
-                            <span class="text-red-500">*</span></FormLabel
-                        >
+                        <label class="text-sm font-medium">
+                            Description <span class="text-red-500">*</span>
+                        </label>
                         <FormControl>
                             <Textarea
                                 v-model="localForm.detail.description"
@@ -294,10 +470,9 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                     <!-- 2 Kolom Grid -->
                     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <FormItem>
-                            <FormLabel
-                                >Address
-                                <span class="text-red-500">*</span></FormLabel
-                            >
+                            <label class="text-sm font-medium">
+                                Address <span class="text-red-500">*</span>
+                            </label>
                             <FormControl>
                                 <Input
                                     v-model="localForm.detail.address"
@@ -307,15 +482,14 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                             </FormControl>
                         </FormItem>
                         <FormItem>
-                            <FormLabel
-                                >District
-                                <span class="text-red-500">*</span></FormLabel
-                            >
+                            <label class="text-sm font-medium">
+                                District <span class="text-red-500">*</span>
+                            </label>
                             <FormControl>
                                 <select
-                                    v-model="localForm.detail.district"
+                                    v-model="localForm.detail.district_id"
                                     @change="
-                                        getVillages(localForm.detail.district)
+                                        getVillages(localForm.detail.district_id)
                                     "
                                     class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
                                 >
@@ -332,13 +506,12 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
 
                         <FormItem>
-                            <FormLabel>
-                                Village
-                                <span class="text-red-500">*</span>
-                            </FormLabel>
+                            <label class="text-sm font-medium">
+                                Village <span class="text-red-500">*</span>
+                            </label>
                             <FormControl>
                                 <select
-                                    v-model="localForm.detail.village"
+                                    v-model="localForm.detail.village_id"
                                     class="w-full rounded-md border bg-background px-3 py-2 text-foreground dark:bg-muted dark:text-foreground"
                                 >
                                     <option value="">Select Village</option>
@@ -353,7 +526,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                             </FormControl>
                         </FormItem>
                         <FormItem>
-                            <FormLabel>Phone</FormLabel>
+                            <label class="text-sm font-medium">Phone</label>
                             <FormControl>
                                 <Input
                                     v-model="localForm.detail.phone"
@@ -367,63 +540,110 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                             </FormDescription>
                         </FormItem>
 
+                        <!-- Pricing -->
                         <FormItem>
-                            <FormLabel
-                                >Open Hours
-                                <span class="text-red-500">*</span></FormLabel
-                            >
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.open_hours"
-                                    type="time"
-                                    placeholder="Open Hours"
-                                />
-                            </FormControl>
-                        </FormItem>
-
-                        <FormItem>
-                            <FormLabel
-                                >Close Hours
-                                <span class="text-red-500">*</span></FormLabel
-                            >
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.close_hours"
-                                    type="time"
-                                    placeholder="Close Hours"
-                                />
-                            </FormControl>
-                        </FormItem>
-
-                        <FormItem>
-                            <FormLabel> Ticket Price </FormLabel>
+                            <label class="text-sm font-medium">
+                                Ticket Price
+                            </label>
                             <FormControl>
                                 <Input
                                     v-model="localForm.detail.ticket_price"
-                                    type="text"
-                                    placeholder="Destination Ticket Price"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
                                 />
                             </FormControl>
-                            <FormDescription>
-                                Format: 10000 or 15000-25000
-                            </FormDescription>
+                            <FormDescription
+                                >Use dot as decimal separator</FormDescription
+                            >
                         </FormItem>
-                        
+
                         <FormItem>
-                            <FormLabel> Maps Link (google maps) </FormLabel>
+                            <label class="text-sm font-medium">Currency</label>
                             <FormControl>
                                 <Input
-                                    v-model="localForm.detail.maps_link"
+                                    v-model="localForm.detail.currency"
                                     type="text"
-                                    placeholder="Destination Maps Link"
+                                    maxlength="3"
+                                    placeholder="IDR"
+                                />
+                            </FormControl>
+                        </FormItem>
+
+                        <FormItem>
+                            <label class="text-sm font-medium">Maps URL</label>
+                            <FormControl>
+                                <Input
+                                    v-model="localForm.detail.map_url"
+                                    type="text"
+                                    placeholder="https://maps.google.com..."
                                 />
                             </FormControl>
                         </FormItem>
                     </div>
 
+                    <!-- Open Hours grid -->
+                    <div class="mt-4">
+                        <label class="text-sm font-medium">Open hours</label>
+                        <div class="mt-2 grid grid-cols-1 gap-2">
+                            <div
+                                v-for="row in localForm.open_hours"
+                                :key="row.day_of_week"
+                                class="grid grid-cols-12 items-center gap-2"
+                            >
+                                <div class="col-span-2 text-sm">
+                                    {{
+                                        [
+                                            'Mon',
+                                            'Tue',
+                                            'Wed',
+                                            'Thu',
+                                            'Fri',
+                                            'Sat',
+                                            'Sun',
+                                        ][row.day_of_week - 1]
+                                    }}
+                                </div>
+                                <div class="col-span-2">
+                                    <label
+                                        class="inline-flex items-center gap-2 text-sm"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            v-model="row.is_closed"
+                                        />
+                                        Closed
+                                    </label>
+                                </div>
+                                <div class="col-span-3">
+                                    <Input
+                                        :disabled="row.is_closed"
+                                        v-model="row.open_time"
+                                        type="time"
+                                    />
+                                </div>
+                                <div class="col-span-3">
+                                    <Input
+                                        :disabled="row.is_closed"
+                                        v-model="row.close_time"
+                                        type="time"
+                                    />
+                                </div>
+                                <div class="col-span-2">
+                                    <Input
+                                        :disabled="row.is_closed"
+                                        v-model="row.notes"
+                                        type="text"
+                                        placeholder="notes"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Images -->
                     <FormItem class="mt-4">
-                        <FormLabel>Images</FormLabel>
+                        <label class="text-sm font-medium">Images</label>
                         <FormControl>
                             <div class="flex flex-wrap items-center gap-2">
                                 <input
@@ -503,7 +723,7 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                 </div>
                             </div>
                         </div>
-                    </div> 
+                    </div>
                     <div class="grid gap-3" v-else>
                         <div
                             v-if="props.images.length"

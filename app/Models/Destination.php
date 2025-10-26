@@ -9,15 +9,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Destination extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'slug',
         'name',
+        'meta_title',
+        'meta_description',
     ];
 
     public function user(): BelongsTo
@@ -43,6 +46,26 @@ class Destination extends Model
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class, 'category_destination', 'destination_id', 'category_id');
+    }
+
+    public function facilities(): BelongsToMany
+    {
+        return $this->belongsToMany(Facility::class, 'destination_facility', 'destination_id', 'facility_id');
+    }
+
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'destination_tag', 'destination_id', 'tag_id');
+    }
+
+    public function openHours(): HasMany
+    {
+        return $this->hasMany(DestinationOpenHour::class, 'destination_id');
+    }
+
+    public function rating(): HasOne
+    {
+        return $this->hasOne(DestinationRating::class, 'destination_id');
     }
 
     public function comments(): MorphMany

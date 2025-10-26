@@ -17,26 +17,44 @@ class Event extends Model
         'title',
         'description',
         'location',
-        'village',
-        'district',
+        'village_id',
         'latitude',
         'longitude',
-        'start_date',
-        'end_date',
+        'start_at',
+        'end_at',
+        'timezone',
         'banner_image',
-        'status',
+        'organizer_name',
+        'organizer_contact',
+        'registration_url',
+        'is_free',
+        'price_min',
+        'price_max',
+        'meta_title',
+        'meta_description',
     ];
 
     protected $casts = [
         'latitude' => 'float',
         'longitude' => 'float',
-        'start_date' => 'date',
-        'end_date' => 'date',
+        'start_at' => 'datetime',
+        'end_at' => 'datetime',
+        'is_free' => 'boolean',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function village(): BelongsTo
+    {
+        return $this->belongsTo(Village::class);
+    }
+
+    public function categories(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(EventCategory::class, 'event_event_category', 'event_id', 'event_category_id');
     }
 
     public function comments(): MorphMany

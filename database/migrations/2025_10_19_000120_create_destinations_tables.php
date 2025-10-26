@@ -23,7 +23,6 @@ return new class extends Migration {
             $table->string('village');
             $table->string('district');
             $table->text('maps_link')->nullable();
-            $table->string('ticket_price')->nullable();
             $table->string('open_hours')->nullable();
             $table->string('close_hours')->nullable();
             $table->string('phone')->nullable();

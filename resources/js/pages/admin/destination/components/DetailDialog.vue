@@ -7,7 +7,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import type { PropType } from 'vue';
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 interface ImageItem {
     preview_url?: string;
@@ -28,9 +28,6 @@ const props = defineProps({
 const isOpen = computed({
     get: () => props.open,
     set: (val) => emit('update:open', val),
-});
-onMounted(() => {
-    console.log(props.title)
 });
 const detail = computed(() => props.detail || {});
 const images = computed(() => props.images || []);
@@ -183,7 +180,7 @@ function formatDate(dateStr: string | null | undefined) {
                             <div class="space-y-1">
                                 <dt class="text-muted-foreground">District</dt>
                                 <dd class="font-medium">
-                                    {{ detail.district?.name || '—' }}
+                                    {{ detail.village?.district?.name || '—' }}
                                 </dd>
                             </div>
 
@@ -192,8 +189,8 @@ function formatDate(dateStr: string | null | undefined) {
                                 <dt class="text-muted-foreground">Maps</dt>
                                 <dd class="font-medium">
                                     <a
-                                        v-if="detail.maps_link"
-                                        :href="detail.maps_link"
+                                        v-if="detail.map_url || detail.maps_link"
+                                        :href="detail.map_url || detail.maps_link"
                                         target="_blank"
                                         rel="noopener"
                                         class="underline decoration-primary/50 underline-offset-4 hover:decoration-primary"
@@ -214,20 +211,7 @@ function formatDate(dateStr: string | null | undefined) {
                                 </dd>
                             </div>
 
-                            <!-- Open / Close -->
-                            <div class="space-y-1">
-                                <dt class="text-muted-foreground">
-                                    Operating hours
-                                </dt>
-                                <dd class="font-medium">
-                                    <span>{{ detail.open_hours || '—' }}</span>
-                                    <span class="mx-2 text-muted-foreground"
-                                        >–</span
-                                    >
-                                    <span>{{ detail.close_hours || '—' }}</span>
-                                </dd>
-                            </div>
-
+                            
                             <!-- Phone -->
                             <div class="space-y-1">
                                 <dt class="text-muted-foreground">Phone</dt>
@@ -243,13 +227,7 @@ function formatDate(dateStr: string | null | undefined) {
                                 </dd>
                             </div>
 
-                            <!-- PIC -->
-                            <div class="space-y-1">
-                                <dt class="text-muted-foreground">PIC</dt>
-                                <dd class="font-medium">
-                                    {{ detail.pic || '—' }}
-                                </dd>
-                            </div>
+                            
                         </dl>
 
                         <!-- Status badge -->
