@@ -13,11 +13,13 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard, usersIndex } from '@/routes';
 import { index as destinationsIndex } from '@/routes/destinations';
+import { index as categoriesIndex } from '@/routes/categories';
+import { index as facilitiesIndex } from '@/routes/facilities'; 
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 // import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
-import { LayoutGrid, UserRoundCog, MapPin } from 'lucide-vue-next';
+import { LayoutGrid, UserRoundCog, MapPin, ChartBarStacked, Building } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -31,6 +33,17 @@ const mainNavItems: NavItem[] = [
         href: destinationsIndex(),
         icon: MapPin,
     },
+    {
+        title: 'Categories',
+        href: categoriesIndex(),
+        icon: ChartBarStacked ,
+    },
+    {
+        title: 'Facilities',
+        href: facilitiesIndex(),
+        icon: Building ,
+    },
+    {}
 ];
 
 const settingNavItems: NavItem[] = [
