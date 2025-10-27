@@ -146,6 +146,7 @@ watch(perPage, (val) => emit('update:perPage', val));
                                             size="sm"
                                             variant="outline"
                                             @click="$emit('details', d)"
+                                            class="hover:cursor-pointer"
                                         >
                                             <ListCollapse
                                                 class="h-5 w-5 text-gray-900 dark:text-gray-100"
@@ -164,6 +165,7 @@ watch(perPage, (val) => emit('update:perPage', val));
                                             size="sm"
                                             variant="outline"
                                             @click="$emit('edit', d)"
+                                            class="hover:cursor-pointer"
                                         >
                                             <Pencil
                                                 class="h-5 w-5 text-gray-900 dark:text-gray-100"
@@ -182,6 +184,7 @@ watch(perPage, (val) => emit('update:perPage', val));
                                             size="sm"
                                             variant="destructive"
                                             @click="$emit('delete', d.id)"
+                                            class="hover:cursor-pointer"
                                         >
                                             <Trash2
                                                 class="h-5 w-5 text-gray-900 dark:text-gray-100"
@@ -199,7 +202,7 @@ watch(perPage, (val) => emit('update:perPage', val));
 
                 <TableRow v-if="!loading && rows.length === 0">
                     <TableCell
-                        colspan="4"
+                        colspan="6"
                         class="text-center text-muted-foreground"
                     >
                         No data

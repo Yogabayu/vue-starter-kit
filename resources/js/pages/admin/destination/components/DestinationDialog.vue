@@ -128,6 +128,7 @@ function deepClone<T>(v: T): T {
 }
 
 const localForm = ref(deepClone(unref(props.form)));
+
 let syncingFromParent = false;
 watch(
     () => unref(props.form),
@@ -541,6 +542,17 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                         </FormItem>
 
                         <!-- Pricing -->
+                         <FormItem>
+                            <label class="text-sm font-medium">Currency</label>
+                            <FormControl>
+                                <Input
+                                    v-model="localForm.detail.currency"
+                                    type="text"
+                                    maxlength="3"
+                                    placeholder="IDR"
+                                />
+                            </FormControl>
+                        </FormItem>
                         <FormItem>
                             <label class="text-sm font-medium">
                                 Ticket Price
@@ -553,22 +565,9 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                     placeholder="0.00"
                                 />
                             </FormControl>
-                            <FormDescription
-                                >Use dot as decimal separator</FormDescription
-                            >
                         </FormItem>
 
-                        <FormItem>
-                            <label class="text-sm font-medium">Currency</label>
-                            <FormControl>
-                                <Input
-                                    v-model="localForm.detail.currency"
-                                    type="text"
-                                    maxlength="3"
-                                    placeholder="IDR"
-                                />
-                            </FormControl>
-                        </FormItem>
+                        
 
                         <FormItem>
                             <label class="text-sm font-medium">Maps URL</label>

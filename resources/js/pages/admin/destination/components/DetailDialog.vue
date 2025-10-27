@@ -17,6 +17,14 @@ interface ImageItem {
     is_cover?: boolean;
 }
 
+interface OpenHour {
+    day_of_week: number;
+    is_closed: boolean;
+    open_time: string;
+    close_time: string;
+    notes?: string;
+}
+
 const emit = defineEmits<{ (e: 'update:open', value: boolean): void }>();
 
 const props = defineProps({
@@ -24,6 +32,7 @@ const props = defineProps({
     title: { type: String, required: true },
     images: { type: Array as PropType<ImageItem[]>, default: () => [] },
     open: { type: Boolean, required: true },
+    openHours: { type: Array as PropType<OpenHour[]>, default: () => [] },
 });
 const isOpen = computed({
     get: () => props.open,
@@ -47,6 +56,69 @@ function formatDate(dateStr: string | null | undefined) {
         return dateStr;
     }
 }
+
+// helper: "02:50:00" -> "02:50"
+function formatTime(timeStr: string) {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':'); // ['02','50','00']
+    return `${parts[0]}:${parts[1]}`;
+}
+
+// urutkan hari dari Monday..Sunday (kalau mau tampilan seperti umumnya)
+const DAY_LABELS = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+];
+
+const normalizedHours = computed(() => {
+    const order = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+    ];
+
+    const mapped = props.openHours.map((oh) => {
+        const dayLabel = DAY_LABELS[oh.day_of_week] ?? 'Sunday';
+
+        if (oh.is_closed) {
+            return {
+                dayLabel,
+                is_closed: true,
+                timeRange: '',
+                notes: oh.notes ?? null,
+            };
+        }
+
+        return {
+            dayLabel,
+            is_closed: false,
+            timeRange: `${formatTime(oh.open_time)} - ${formatTime(oh.close_time)}`,
+            notes: oh.notes ?? null,
+        };
+    });
+
+    return mapped.sort(
+        (a, b) => order.indexOf(a.dayLabel) - order.indexOf(b.dayLabel),
+    );
+});
+
+const normalizeCurrency = (value: number | string, currency: string ) => {
+    const number = typeof value === 'number' ? value : parseFloat(value);
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: currency || 'IDR',
+        minimumFractionDigits: 0,
+    }).format(number);
+};
 </script>
 
 <template>
@@ -144,9 +216,7 @@ function formatDate(dateStr: string | null | undefined) {
                             <h3
                                 class="text-xl font-semibold tracking-tight capitalize"
                             >
-                                {{
-                                    title || 'Untitled Destination'
-                                }}
+                                {{ title || 'Untitled Destination' }}
                             </h3>
                             <p class="text-sm text-muted-foreground">
                                 Destination information
@@ -189,8 +259,12 @@ function formatDate(dateStr: string | null | undefined) {
                                 <dt class="text-muted-foreground">Maps</dt>
                                 <dd class="font-medium">
                                     <a
-                                        v-if="detail.map_url || detail.maps_link"
-                                        :href="detail.map_url || detail.maps_link"
+                                        v-if="
+                                            detail.map_url || detail.maps_link
+                                        "
+                                        :href="
+                                            detail.map_url || detail.maps_link
+                                        "
                                         target="_blank"
                                         rel="noopener"
                                         class="underline decoration-primary/50 underline-offset-4 hover:decoration-primary"
@@ -206,12 +280,10 @@ function formatDate(dateStr: string | null | undefined) {
                                 <dt class="text-muted-foreground">
                                     Ticket price
                                 </dt>
-                                <dd class="font-medium">
-                                    {{ detail.ticket_price || '—' }}
+                                <dd class="font-medium">{{ normalizeCurrency(detail.ticket_price, detail.currency) || '—' }}
                                 </dd>
                             </div>
 
-                            
                             <!-- Phone -->
                             <div class="space-y-1">
                                 <dt class="text-muted-foreground">Phone</dt>
@@ -226,8 +298,49 @@ function formatDate(dateStr: string | null | undefined) {
                                     <span v-else>—</span>
                                 </dd>
                             </div>
+                        </dl>
 
-                            
+                        <dl>
+                            <div class="col-span-2">
+                                <dt class="text-muted-foreground">
+                                    Open Hours (on WIB)
+                                </dt>
+                                <dd class="space-y-1 font-medium">
+                                    <template v-if="normalizedHours.length > 0">
+                                        <div
+                                            v-for="(
+                                                row, idx
+                                            ) in normalizedHours"
+                                            :key="idx"
+                                        >
+                                            <span
+                                                class="inline-block min-w-[110px]"
+                                            >
+                                                {{ row.dayLabel }}
+                                            </span>
+
+                                            <span>
+                                                :
+                                            </span>
+
+                                            <span v-if="row.is_closed">
+                                                Closed
+                                            </span>
+
+                                            <span v-else>
+                                                {{ row.timeRange }}
+                                                <span
+                                                    v-if="row.notes"
+                                                    class="text-muted-foreground"
+                                                >
+                                                    ({{ row.notes }})
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </template>
+                                    <span v-else>—</span>
+                                </dd>
+                            </div>
                         </dl>
 
                         <!-- Status badge -->

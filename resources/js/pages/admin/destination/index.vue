@@ -10,7 +10,7 @@ import { index as destinationsIndex } from '@/routes/destinations';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { BadgePlus } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref,h } from 'vue';
 import { toast } from 'vue-sonner';
 
 
@@ -82,7 +82,7 @@ async function updateDistricts() {
         const res = await fetch(route('districts.update', { code: '35.02' }), {
             headers: { Accept: 'application/json' },
         });
-        if (!res.ok) throw new Error('Failed to update districts');
+        if (!res.ok) console.error('Failed to update districts');
     } catch (e) {
         console.error(e);
         toast.error((e as any).message || 'Failed to update districts');
@@ -491,30 +491,105 @@ async function saveDestination() {
     }
 }
 
-async function removeDestination(id: number) {
-    try {
-        const res = await fetch(
-            route('destinations.destroy', { destination: id }),
+function removeDestination(id: number) {
+  toast.custom(
+    () =>
+      h(
+        'div',
+        {
+          class: [
+            'pointer-events-auto',
+            'rounded-lg border shadow-lg px-4 py-3',
+            'bg-zinc-900 border-zinc-700 text-zinc-100',
+            'max-w-[300px] text-sm',
+          ].join(' '),
+        },
+        [
+          h(
+            'p',
             {
-                method: 'DELETE',
-                credentials: 'same-origin',
-                headers: csrfHeaders({ Accept: 'application/json' }),
+              class:
+                'font-medium text-base text-zinc-100 mb-3 text-center',
             },
-        );
-        if (!res.ok) throw new Error('Failed to delete');
-        toast.success('Destination deleted');
-        router.reload({ only: ['destinations'] });
-    } catch (e) {
-        console.error(e);
-        toast.error('Failed to delete');
-    }
-}
+            'Yakin ingin menghapus destinasi ini?'
+          ),
 
+          h(
+            'div',
+            {
+              class:
+                'flex items-center justify-center gap-2',
+            },
+            [
+              h(
+                'button',
+                {
+                  class: [
+                    'px-3 py-1.5 text-sm font-medium rounded',
+                    'bg-zinc-200 text-zinc-800 hover:bg-zinc-300',
+                    'dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600',
+                    'cursor-pointer select-none',
+                    'border border-transparent dark:border-zinc-600',
+                  ].join(' '),
+                  onClick: () => {
+                    toast.dismiss()
+                  },
+                },
+                'Batal'
+              ),
+
+              h(
+                'button',
+                {
+                  class: [
+                    'px-3 py-1.5 text-sm font-medium rounded',
+                    'bg-red-600 text-white hover:bg-red-700',
+                    'cursor-pointer select-none',
+                    'border border-transparent',
+                  ].join(' '),
+                  onClick: async () => {
+                    toast.dismiss()
+
+                    try {
+                      const res = await fetch(
+                        route('destinations.destroy', {
+                          destination: id,
+                        }),
+                        {
+                          method: 'DELETE',
+                          credentials: 'same-origin',
+                          headers: csrfHeaders({
+                            Accept: 'application/json',
+                          }),
+                        }
+                      )
+
+                      if (!res.ok) throw new Error('Failed to delete')
+
+                      toast.success('Destination deleted ✅')
+                      router.reload({ only: ['destinations'] })
+                    } catch (e) {
+                      console.error(e)
+                      toast.error('Failed to delete ❌')
+                    }
+                  },
+                },
+                'Ya, Hapus'
+              ),
+            ]
+          ),
+        ]
+      ),
+    {
+      duration: Infinity,
+      class: 'pointer-events-auto bg-transparent shadow-none border-0',
+      closeButton: false, 
+    }
+  )
+}
 
 const uploadFile = ref<File | null>(null);
 const uploadCaption = ref('');
-
-
 
 function onFileChange(e: Event) {
     const input = e.target as HTMLInputElement | null;
@@ -628,10 +703,11 @@ function updateFormFromDialog(v: any) {
     if (v?.detail) form.detail = v.detail;
 }
 
-function detailsOf(row: DestinationRow) {
+function detailsOf(row: DestinationRow) {    
     form.detail = row.detail;
     form.images = row.images || [];
     form.name = row.name;
+    form.open_hours = row.open_hours || [];
     isDetailOpen.value = true;
 }
 
@@ -695,7 +771,6 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- Edit/Create Dialog -->
         <DestinationDialog
             v-model:open="isEditOpen"
             v-model:uploadCaption="uploadCaption"
@@ -725,6 +800,7 @@ onMounted(() => {
             :detail="form.detail"
             :images="form.images"
             :title="form.name"
+            :openHours="form.open_hours"
         />
     </AppLayout>
 </template>

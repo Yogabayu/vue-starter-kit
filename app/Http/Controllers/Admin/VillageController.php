@@ -24,7 +24,13 @@ class VillageController extends Controller
     public function update($code)
     {
         try {
-            $villages = Village::where('district_id', $code)->get();
+            $districtID = District::where('code', $code)->value('id');
+            if (!$districtID) {
+                return response()->json([
+                    'error' => 'District not found',
+                ], 404);
+            }
+            $villages = Village::where('district_id', $districtID)->get();
 
             if ($villages->isNotEmpty()) {
                 return response()->json([
@@ -35,7 +41,7 @@ class VillageController extends Controller
 
             $response = Http::get("https://wilayah.id/api/villages/{$code}.json");
 
-            if (! $response->successful()) {
+            if (!$response->successful()) {
                 throw new \Exception('Failed to fetch data from API');
             }
 

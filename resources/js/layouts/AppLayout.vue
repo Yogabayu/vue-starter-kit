@@ -22,3 +22,9 @@ withDefaults(defineProps<Props>(), {
   <ThemeFab />
     </AppLayout>
 </template>
+
+<style>
+ button:hover {
+    cursor: pointer;
+ }
+</style>

@@ -32,6 +32,8 @@ class DistrictController extends Controller
                         ['name' => $data['name']]
                     );
                 }
+            } else {
+                Log::error("Failed to fetch districts from external API. Status: " . $response->status());
             }
             Log::info('Districts updated successfully.');
             return response()->json(['message' => 'Districts updated successfully.']);
