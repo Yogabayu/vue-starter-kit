@@ -30,33 +30,51 @@ class CategoryController extends Controller
 
     public function store(Request $request)
     {
-
-        $data = $request->validate([
-            'slug' => ['required', 'string', 'max:255', 'unique:categories,slug'],
-            'name' => ['required', 'string', 'max:255'],
-            'icon' => ['nullable', 'string', 'max:255'],
-        ]);
-        $category = Category::create($data);
-        return response()->json($category, 201);
+        try {
+            $data = $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'icon' => ['nullable', 'string', 'max:255'],
+            ]);
+            $data['slug'] = \Str::slug($data['name']);
+            if (Category::where('slug', $data['slug'])->exists()) {
+                // throw 'Category with this name already exists';
+                return response()->json(['message' => 'Category with this name already exists'], 422);
+            }
+            $category = Category::create($data);
+            return response()->json($category, 201);
+        } catch (\Throwable $th) {
+            return response()->json(['message' => $th->getMessage()], 500);
+        }
     }
 
-    public function update(Request $request, Category $category)
+    public function update(Request $request, $category)
     {
-
-        $data = $request->validate([
-            'slug' => ['sometimes', 'string', 'max:255', Rule::unique('categories', 'slug')->ignore($category->id)],
-            'name' => ['sometimes', 'string', 'max:255'],
-            'icon' => ['nullable', 'string', 'max:255'],
-        ]);
-        $category->update($data);
-        return response()->json($category);
+        try {
+            $data = $request->validate([
+                'name' => ['sometimes', 'string', 'max:255'],
+                'icon' => ['nullable', 'string', 'max:255'],
+            ]);
+            $data['slug'] = \Str::slug($data['name']);
+            if (Category::where('slug', $data['slug'])->where('id', '!=', $category->id)->exists()) {
+                throw 'Category with this name already exists';
+            }
+            $category = Category::findOrFail($category);
+            $category->update($data);
+            return response()->json($category);
+        } catch (\Throwable $th) {
+            return response()->json(['message' => 'Failed to update category'], 500);
+        }
     }
 
-    public function destroy(Category $category)
+    public function destroy($category)
     {
-
-        $category->destinations()->detach();
-        $category->delete();
-        return response()->json(['message' => 'Deleted']);
+        try {
+            $category = Category::findOrFail($category);
+            $category->destinations()->detach();
+            $category->delete();
+            return response()->json(['message' => 'Deleted']);
+        } catch (\Throwable $th) {
+            return response()->json(['message' => 'Error deleting category'], 500);
+        }
     }
 }

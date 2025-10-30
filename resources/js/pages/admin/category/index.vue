@@ -24,7 +24,6 @@ import DeleteDialog from './components/DeleteDialog.vue';
 type Category = {
     id: number;
     name: string;
-    slug: string;
     icon?: string | null;
     created_at: string;
 };
@@ -46,18 +45,7 @@ const isEditOpen = ref(false);
 const isDeleteOpen = ref(false);
 const selected = ref<Category | null>(null);
 
-const form = ref<Partial<Category>>({ id: null, name: '', slug: '', icon: '' });
-
-function slugify(v: string) {
-    return (v || '')
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/--+/g, '-')
-        .replace(/^-+|-+$/g, '');
-}
+const form = ref<Partial<Category>>({ id: null, name: '', icon: '' });
 
 function getCookie(name: string) {
     const m = document.cookie.match(
@@ -78,7 +66,7 @@ const filtered = computed(() => {
     if (!q.value) return list.value;
     const x = q.value.toLowerCase();
     return list.value.filter(
-        (c) => c.name.toLowerCase().includes(x) || c.slug.toLowerCase().includes(x),
+        (c) => c.name.toLowerCase().includes(x),
     );
 });
 
@@ -120,30 +108,32 @@ async function refresh() {
 
 function openCreate() {
     selected.value = null;
-    form.value = { id: null, name: '', slug: '', icon: '' };
+    form.value = { id: null, name: '', icon: '' };
     isEditOpen.value = true;
 }
 
 function openEdit(row: Category) {
     selected.value = row;
-    form.value = { id: row.id, name: row.name, slug: row.slug, icon: row.icon || '' };
+    form.value = { id: row.id, name: row.name, icon: row.icon || '' };
     isEditOpen.value = true;
 }
 
 async function saveCategory() {
     try {
-        const payload = { name: form.value.name || '', slug: form.value.slug || '', icon: form.value.icon || '' } as any;
-        if (!payload.slug && payload.name) payload.slug = slugify(payload.name);
+        const payload = { name: form.value.name || '', icon: form.value.icon || '' } as any;
 
         if (form.value.id) {
-            const targetKey = selected.value?.slug || form.value.slug || '';
+            const targetKey = selected.value?.id || form.value.id || '';
             const res = await fetch(route('categories.update', { category: targetKey }), {
                 method: 'PUT',
                 credentials: 'same-origin',
                 headers: csrfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }),
                 body: JSON.stringify(payload),
             });
-            if (!res.ok) throw new Error('Update failed');
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData?.message || 'Update failed');
+            }
             toast.success('Category updated');
         } else {
             const res = await fetch(route('categories.store'), {
@@ -152,13 +142,15 @@ async function saveCategory() {
                 headers: csrfHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }),
                 body: JSON.stringify(payload),
             });
-            if (!res.ok) throw new Error('Create failed');
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData?.message || 'Create failed');
+            }
             toast.success('Category created');
         }
         isEditOpen.value = false;
         await refresh();
     } catch (e: any) {
-        console.error(e);
         toast.error(e?.message || 'Save failed');
     }
 }
@@ -171,7 +163,7 @@ function askDelete(row: Category) {
 async function confirmDelete() {
     if (!selected.value) return;
     try {
-        const res = await fetch(route('categories.destroy', { category: selected.value.slug }), {
+        const res = await fetch(route('categories.destroy', { category: selected.value.id }), {
             method: 'DELETE',
             credentials: 'same-origin',
             headers: csrfHeaders({ Accept: 'application/json' }),

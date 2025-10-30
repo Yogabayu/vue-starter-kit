@@ -63,13 +63,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('destinations/{destination}/images', [DestinationImageController::class, 'store'])->name('destinations.images.store');
         Route::patch('destinations/{destination}/images/{image}/cover', [DestinationImageController::class, 'markCover'])->name('destinations.images.cover');
         Route::delete('destinations/{destination}/images/{image}', [DestinationImageController::class, 'destroy'])->name('destinations.images.destroy');
-        Route::resource('categories', CategoryController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
-        Route::get('facilities', [FacilityController::class, 'index'])->name('facilities.index');
+
+
+        Route::resource('facilities', FacilityController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::get('tags', [TagController::class, 'index'])->name('tags.index');
         Route::resource('events', EventController::class)->only(['store', 'update', 'destroy']);
         Route::get('event-categories', [EventCategoryController::class, 'index'])->name('event_categories.index');
         Route::resource('banners', BannerController::class)->only(['store', 'update', 'destroy']);
         Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
+
+        Route::prefix('category')->group(function () {
+            Route::resource('categories', CategoryController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+        });
     });
 });
 
