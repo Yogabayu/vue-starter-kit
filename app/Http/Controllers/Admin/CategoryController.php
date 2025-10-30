@@ -6,12 +6,21 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Category::latest()->get());
+        // Return JSON for API-style requests (used by Vue fetch calls)
+        if ($request->wantsJson()) {
+            return response()->json(['data' => Category::orderByDesc('id')->get()]);
+        }
+
+        return Inertia::render('admin/category/index', [
+            'categories' => Category::latest()->get(),
+        ]);
     }
 
     public function show(Category $category)
