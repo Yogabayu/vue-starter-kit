@@ -37,6 +37,31 @@ import { Check, Trash2 } from 'lucide-vue-next';
 const fileEl = ref<HTMLInputElement | null>(null);
 
 const villages = ref([] as any[]);
+const tagSearch = ref('');
+const onTagSearchInput = (e: Event) => {
+    const target = e.target as HTMLInputElement | null;
+    tagSearch.value = (target?.value || '').toString();
+};
+const canCreateTag = computed(() => {
+    const raw = tagSearch.value.trim();
+    if (!raw) return false;
+    const existsByName = (props.tags || []).some(
+        (t) => t.name.toLowerCase() === raw.toLowerCase(),
+    );
+    const alreadyNew = (localForm.value?.new_tags || []).some(
+        (n: string) => n.toLowerCase() === raw.toLowerCase(),
+    );
+    return !existsByName && !alreadyNew;
+});
+const createTagFromSearch = () => {
+    const raw = tagSearch.value.trim();
+    if (!raw) return;
+    if (!canCreateTag.value) return;
+    if (!Array.isArray((localForm.value as any).new_tags))
+        (localForm.value as any).new_tags = [] as any;
+    (localForm.value as any).new_tags.push(raw);
+    tagSearch.value = '';
+};
 
 async function getVillages(idDistricts: string) {
     try {
@@ -383,18 +408,17 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                             variant="outline"
                                             class="w-full justify-between"
                                         >
-                                            <span v-if="selectedTags.length">
+                                            <span v-if="selectedTags.length || (localForm.new_tags && localForm.new_tags.length)">
                                                 {{
                                                     selectedTags
                                                         .map((c: any) => c.name)
+                                                        .concat(localForm.new_tags || [])
                                                         .join(', ')
                                                 }}
                                             </span>
-                                            <span
-                                                v-else
-                                                class="text-muted-foreground"
-                                                >Select tags...</span
-                                            >
+                                            <span v-else class="text-muted-foreground">
+                                                Select tags...
+                                            </span>
                                         </Button>
                                     </FormControl>
                                 </PopoverTrigger>
@@ -404,42 +428,62 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                 >
                                     <Command>
                                         <CommandInput
-                                            placeholder="Search tag..."
+                                            placeholder="Search or create tag..."
+                                            @input="onTagSearchInput"
+                                            @keydown.enter.prevent="createTagFromSearch"
                                         />
-                                        <CommandEmpty
-                                            >No tag found.</CommandEmpty
-                                        >
+                                        <CommandEmpty>
+                                            <div class="p-2 text-sm">
+                                                <div>No tag found.</div>
+                                                <button
+                                                    v-if="canCreateTag"
+                                                    class="mt-2 w-full text-left underline"
+                                                    @mousedown.prevent="createTagFromSearch"
+                                                >
+                                                    Create "{{ tagSearch.trim() }}"
+                                                </button>
+                                            </div>
+                                        </CommandEmpty>
                                         <CommandGroup>
                                             <CommandItem
                                                 v-for="c in props.tags || []"
                                                 :key="c.id"
                                                 class="flex items-center justify-between"
-                                                @select="
-                                                    emit('toggle-tag', c.id)
-                                                "
-                                                :value="c.id"
+                                                @select="emit('toggle-tag', c.id)"
+                                                :value="c.name"
                                             >
                                                 <span>{{ c.name }}</span>
                                                 <Check
-                                                    v-if="
-                                                        selectedTagIds.includes(
-                                                            c.id,
-                                                        )
-                                                    "
+                                                    v-if="selectedTagIds.includes(c.id)"
                                                     class="h-4 w-4"
                                                 />
+                                            </CommandItem>
+                                            <CommandItem
+                                                v-if="
+                                                    tagSearch.trim() &&
+                                                    !(props.tags || []).some(t => t.name.toLowerCase() === tagSearch.trim().toLowerCase()) &&
+                                                    !(localForm.new_tags || []).some((n: string) => n.toLowerCase() === tagSearch.trim().toLowerCase())
+                                                "
+                                                :value="tagSearch"
+                                                class="flex items-center justify-between text-emerald-600"
+                                                @select="
+                                                    () => {
+                                                        if (!Array.isArray(localForm.new_tags)) localForm.new_tags = [] as any;
+                                                        (localForm.new_tags as any).push(tagSearch.trim());
+                                                        tagSearch = '' as any;
+                                                    }
+                                                "
+                                            >
+                                                <span>Create "{{ tagSearch.trim() }}"</span>
                                             </CommandItem>
                                         </CommandGroup>
                                     </Command>
                                 </PopoverContent>
                             </Popover>
-                            <div
-                                v-if="selectedTags.length"
-                                class="mt-2 flex flex-wrap gap-2"
-                            >
+                            <div class="mt-2 flex flex-wrap gap-2" v-if="selectedTags.length || (localForm.new_tags && localForm.new_tags.length)">
                                 <span
                                     v-for="c in selectedTags"
-                                    :key="c.id"
+                                    :key="'existing-' + c.id"
                                     class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs"
                                 >
                                     {{ c.name }}
@@ -451,7 +495,23 @@ watch(localCaption, (v) => emit('update:uploadCaption', v));
                                         x
                                     </button>
                                 </span>
+                                <span
+                                    v-for="(name, idx) in (localForm.new_tags || [])"
+                                    :key="'new-' + idx + '-' + name"
+                                    class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs"
+                                >
+                                    {{ name }}
+                                    <button
+                                        type="button"
+                                        @click="localForm.new_tags = (localForm.new_tags || []).filter((n: string, i: number) => i !== idx)"
+                                        class="hover:text-destructive"
+                                    >
+                                        x
+                                    </button>
+                                </span>
                             </div>
+
+                            
                         </FormItem>
                     </div>
 

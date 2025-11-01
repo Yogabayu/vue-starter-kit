@@ -11,18 +11,18 @@ const search = ref('')
 const open = ref(false)
 const activeIndex = ref(0)
 
-// Utility: buat slug kebab-case dari nama komponen (preserve angka/acronym konsisten)
+
 function toKebabFromKey(key: string) {
   return key
-    // lower/number to Upper
+    
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    // number next to letter boundaries
+    
     .replace(/([0-9])([A-Za-z])/g, '$1-$2')
     .replace(/([A-Za-z])([0-9])/g, '$1-$2')
     .toLowerCase()
 }
 
-// Siapkan map untuk resolusi aman kebab -> nama komponen asli
+
 const validKeys = Object.keys(icons).filter((key) =>
   /^[A-Z]/.test(key) && key !== 'Icon' && !key.startsWith('Lucide') && !key.endsWith('Icon')
 )
@@ -30,11 +30,11 @@ const validKeys = Object.keys(icons).filter((key) =>
 const kebabToKey = new Map<string, string>()
 for (const k of validKeys) {
   const slug = toKebabFromKey(k)
-  // Ambil entri pertama untuk hindari duplikasi key di v-for
+  
   if (!kebabToKey.has(slug)) kebabToKey.set(slug, k)
 }
 
-// Semua nama icon (otomatis, unik, terurut)
+
 const allIcons = Array.from(kebabToKey.keys()).sort()
 
 const filteredIcons = computed(() => {
@@ -53,7 +53,7 @@ function toPascal(name: string) {
     .join('')
 }
 
-// Selalu return komponen atau null
+
 function getIcon(name: string) {
   const key = kebabToKey.get(name) || toPascal(name)
   if (!key || key === 'Icon' || key.startsWith('Lucide') || key.endsWith('Icon')) return null
@@ -66,7 +66,7 @@ function selectIcon(name: string) {
   open.value = false
 }
 
-// Preview prioritas: ketikan user -> item aktif -> kosong
+
 const previewName = computed(() => {
   if (getIcon(search.value)) return search.value
   return suggestions.value[activeIndex.value] || ''
@@ -92,11 +92,11 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function handleBlur() {
-  // Delay to allow click on suggestion list
+  
   window.setTimeout(() => (open.value = false), 100)
 }
 
-// Sinkronkan dengan nilai awal dan perubahan eksternal
+
 onMounted(() => {
   search.value = modelValue || ''
 })
@@ -111,7 +111,7 @@ watch(
 watch(
   () => search.value,
   () => {
-    // reset active saat filter berubah
+    
     activeIndex.value = 0
     open.value = true
   }

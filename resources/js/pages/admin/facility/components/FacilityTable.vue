@@ -16,7 +16,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Pencil, Trash2 } from 'lucide-vue-next';
+import * as icons from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
 const props = defineProps({
@@ -52,6 +52,18 @@ function setSort(key: string) {
     }
     emit('update:sort', { key: sortKey.value, dir: sortDir.value });
 }
+function toPascal(name: string) {
+    if (!name) return ''
+    return String(name)
+        .split('-')
+        .map((n) => n.charAt(0).toUpperCase() + n.slice(1))
+        .join('')
+}
+function getIcon(name?: string) {
+    const key = toPascal(name || '')
+    if (!key || key === 'Icon') return null
+    return (icons as any)[key] ?? null
+}
 
 watch(page, (val) => emit('update:page', val));
 watch(perPage, (val) => emit('update:perPage', val));
@@ -73,10 +85,6 @@ watch(perPage, (val) => emit('update:perPage', val));
                         Name
                         <span v-if="sortKey === 'name'">({{ sortDir }})</span>
                     </TableHead>
-                    <TableHead class="cursor-pointer select-none" @click="setSort('slug')">
-                        Slug
-                        <span v-if="sortKey === 'slug'">({{ sortDir }})</span>
-                    </TableHead>
                     <TableHead>Icon</TableHead>
                     <TableHead class="cursor-pointer select-none" @click="setSort('created_at')">
                         Created At
@@ -97,16 +105,25 @@ watch(perPage, (val) => emit('update:perPage', val));
                 <TableRow v-for="c in rows" :key="c.id" v-else>
                     <TableCell>{{ (page - 1) * perPage + rows.indexOf(c) + 1 }}</TableCell>
                     <TableCell>{{ c.name }}</TableCell>
-                    <TableCell>{{ c.slug }}</TableCell>
-                    <TableCell>{{ c.icon || '—' }}</TableCell>
+                    <TableCell>
+                        <component
+                            :is="getIcon(c.icon)"
+                            class="h-5 w-5 text-gray-900 dark:text-gray-100"
+                            v-if="getIcon(c.icon)"
+                        />
+                        <span v-else>—</span>
+                    </TableCell>
                     <TableCell>{{ new Date(c.created_at).toLocaleDateString() }}</TableCell>
-                    <TableCell class="text-right">
-                        <div class="flex justify-end gap-2">
+                    <TableCell class="text-center">
+                        <div class="flex justify-center gap-2">
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button size="sm" variant="outline" @click="$emit('edit', c)" class="hover:cursor-pointer">
-                                            <Pencil class="h-5 w-5 text-gray-900 dark:text-gray-100" />
+                                            <component
+                                                :is="icons['Pencil']"
+                                                class="h-5 w-5 text-gray-900 dark:text-gray-100" 
+                                            />
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -118,7 +135,11 @@ watch(perPage, (val) => emit('update:perPage', val));
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button size="sm" variant="destructive" @click="$emit('delete', c)" class="hover:cursor-pointer">
-                                            <Trash2 class="h-5 w-5 text-gray-900 dark:text-gray-100" />
+                                            <!-- <Trash2 class="h-5 w-5 text-gray-900 dark:text-gray-100" /> -->
+                                            <component
+                                                :is="icons['Trash2']"
+                                                class="h-5 w-5 text-gray-900 dark:text-gray-100" 
+                                            />
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
@@ -131,7 +152,7 @@ watch(perPage, (val) => emit('update:perPage', val));
                 </TableRow>
 
                 <TableRow v-if="!loading && rows.length === 0">
-                    <TableCell colspan="6" class="text-center text-muted-foreground">
+                    <TableCell colspan="5" class="text-center text-muted-foreground">
                         No data
                     </TableCell>
                 </TableRow>

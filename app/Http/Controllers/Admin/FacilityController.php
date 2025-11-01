@@ -24,10 +24,10 @@ class FacilityController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'slug' => ['required', 'string', 'max:255', 'unique:facilities,slug'],
             'name' => ['required', 'string', 'max:255'],
             'icon' => ['nullable', 'string', 'max:255'],
         ]);
+        $data['slug'] = \Str::slug($data['name']);
         $facility = Facility::create($data);
         return response()->json($facility, 201);
     }

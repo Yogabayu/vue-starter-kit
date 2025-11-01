@@ -15,7 +15,7 @@ import {
     FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import LucideIconPicker from './LucideIconPicker.vue';
+import LucideIconPicker from '@/components/customizer/LucideIconPicker.vue';
 import { computed, nextTick, ref, unref, watch } from 'vue';
 
 const props = defineProps<{

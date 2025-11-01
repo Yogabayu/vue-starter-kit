@@ -16,6 +16,7 @@ import {
     FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import LucideIconPicker from '@/components/customizer/LucideIconPicker.vue';
 
 const props = defineProps<{ open: boolean; form: any }>();
 const emit = defineEmits<{ (e: 'update:open', value: boolean): void; (e: 'update:form', value: any): void; (e: 'save'): void }>();
@@ -71,7 +72,7 @@ function onNameInput() {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent class="max-h-[90vh] overflow-hidden p-0 sm:max-w-md">
+        <DialogContent class="max-h-[100vh] overflow-hidden p-0 sm:max-w-md">
             <DialogHeader class="px-6 pt-6 pb-3">
                 <DialogTitle>
                     {{ props.form?.id ? 'Edit Facility' : 'Add Facility' }}
@@ -92,21 +93,14 @@ function onNameInput() {
                             </FormControl>
                         </FormItem>
                     </FormField>
-
-                    <FormField v-slot="{ componentField }" name="slug">
-                        <FormItem>
-                            <FormLabel> Slug <span class="text-red-500">*</span> </FormLabel>
-                            <FormControl>
-                                <Input v-bind="componentField" v-model="localForm.slug" type="text" placeholder="facility-slug" />
-                            </FormControl>
-                        </FormItem>
-                    </FormField>
-
                     <FormField v-slot="{ componentField }" name="icon">
                         <FormItem>
-                            <FormLabel> Icon </FormLabel>
+                            <FormLabel>Icon</FormLabel>
                             <FormControl>
-                                <Input v-bind="componentField" v-model="localForm.icon" type="text" placeholder="e.g. building" />
+                                <LucideIconPicker
+                                    v-bind="componentField"
+                                    v-model="localForm.icon"
+                                />
                             </FormControl>
                         </FormItem>
                     </FormField>

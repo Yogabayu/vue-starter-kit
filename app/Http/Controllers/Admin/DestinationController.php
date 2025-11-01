@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 use App\Models\DestinationOpenHour;
 use App\Models\District;
 use App\Models\Village;
+use App\Models\Tag;
 
 class DestinationController extends Controller
 {
@@ -51,8 +52,8 @@ class DestinationController extends Controller
             'facilities' => ['array'],
             'facilities.*' => ['integer', 'exists:facilities,id'],
 
+            // tags can be a mix of id (int) and name (string)
             'tags' => ['array'],
-            'tags.*' => ['integer', 'exists:tags,id'],
 
             'detail' => ['nullable'],
             'open_hours' => ['nullable', 'string'],
@@ -135,9 +136,36 @@ class DestinationController extends Controller
                 $destination->facilities()->sync($validated['facilities']);
             }
 
-            if (!empty($validated['tags'])) {
-                $destination->tags()->sync($validated['tags']);
+            // Handle tags (int ids or string names) + backward compat with new_tags
+            $finalTagIds = [];
+            $incomingTags = $request->input('tags', []);
+            if (is_array($incomingTags)) {
+                foreach ($incomingTags as $val) {
+                    if (is_numeric($val)) {
+                        $tag = Tag::find((int)$val);
+                        if ($tag) $finalTagIds[] = $tag->id;
+                    } elseif (is_string($val)) {
+                        $name = trim($val);
+                        if ($name === '') continue;
+                        $slug = Str::slug($name);
+                        $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name]);
+                        $finalTagIds[] = $tag->id;
+                    }
+                }
             }
+            $incomingNewTags = $request->input('new_tags', []);
+            if (is_array($incomingNewTags)) {
+                foreach ($incomingNewTags as $tagName) {
+                    if (!is_string($tagName)) continue;
+                    $name = trim($tagName);
+                    if ($name === '') continue;
+                    $slug = Str::slug($name);
+                    $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name]);
+                    $finalTagIds[] = $tag->id;
+                }
+            }
+            $finalTagIds = array_values(array_unique($finalTagIds));
+            if (!empty($finalTagIds)) $destination->tags()->sync($finalTagIds);
 
 
             if ($request->filled('open_hours')) {
@@ -202,8 +230,8 @@ class DestinationController extends Controller
             'facilities' => ['sometimes', 'array'],
             'facilities.*' => ['integer', 'exists:facilities,id'],
 
+            // tags can be a mix of id (int) and name (string)
             'tags' => ['sometimes', 'array'],
-            'tags.*' => ['integer', 'exists:tags,id'],
 
             'detail' => ['sometimes'],
 
@@ -289,8 +317,37 @@ class DestinationController extends Controller
                 $destination->facilities()->sync($validated['facilities'] ?? []);
             }
 
-            if (array_key_exists('tags', $validated)) {
-                $destination->tags()->sync($validated['tags'] ?? []);
+            // Handle tags + new_tags for update
+            if ($request->has('tags') || $request->has('new_tags')) {
+                $finalTagIds = [];
+                $incomingTags = $request->input('tags', []);
+                if (is_array($incomingTags)) {
+                    foreach ($incomingTags as $val) {
+                        if (is_numeric($val)) {
+                            $tag = Tag::find((int)$val);
+                            if ($tag) $finalTagIds[] = $tag->id;
+                        } elseif (is_string($val)) {
+                            $name = trim($val);
+                            if ($name === '') continue;
+                            $slug = Str::slug($name);
+                            $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name]);
+                            $finalTagIds[] = $tag->id;
+                        }
+                    }
+                }
+                $incomingNewTags = $request->input('new_tags', []);
+                if (is_array($incomingNewTags)) {
+                    foreach ($incomingNewTags as $tagName) {
+                        if (!is_string($tagName)) continue;
+                        $name = trim($tagName);
+                        if ($name === '') continue;
+                        $slug = Str::slug($name);
+                        $tag = Tag::firstOrCreate(['slug' => $slug], ['name' => $name]);
+                        $finalTagIds[] = $tag->id;
+                    }
+                }
+                $finalTagIds = array_values(array_unique($finalTagIds));
+                $destination->tags()->sync($finalTagIds);
             }
 
 

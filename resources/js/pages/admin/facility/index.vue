@@ -24,7 +24,6 @@ import type { BreadcrumbItem } from '@/types';
 type Facility = {
     id: number;
     name: string;
-    slug: string;
     icon?: string | null;
     created_at: string;
 };
@@ -46,18 +45,7 @@ const isEditOpen = ref(false);
 const isDeleteOpen = ref(false);
 const selected = ref<Facility | null>(null);
 
-const form = ref<Partial<Facility>>({ id: null, name: '', slug: '', icon: '' });
-
-function slugify(v: string) {
-    return (v || '')
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/--+/g, '-')
-        .replace(/^-+|-+$/g, '');
-}
+const form = ref<Partial<Facility>>({ id: null, name: '', icon: '' });
 
 function getCookie(name: string) {
     const m = document.cookie.match(
@@ -74,7 +62,7 @@ const filtered = computed(() => {
     if (!q.value) return list.value;
     const x = q.value.toLowerCase();
     return list.value.filter(
-        (c) => c.name.toLowerCase().includes(x) || c.slug.toLowerCase().includes(x),
+        (c) => c.name.toLowerCase().includes(x) ,
     );
 });
 
@@ -112,21 +100,19 @@ async function refresh() {
 
 function openCreate() {
     selected.value = null;
-    form.value = { id: null, name: '', slug: '', icon: '' };
+    form.value = { id: null, name: '', icon: '' };
     isEditOpen.value = true;
 }
 
 function openEdit(row: Facility) {
     selected.value = row;
-    form.value = { id: row.id, name: row.name, slug: row.slug, icon: row.icon || '' };
+    form.value = { id: row.id, name: row.name, icon: row.icon || '' };
     isEditOpen.value = true;
 }
 
 async function saveFacility() {
     try {
-        const payload = { name: form.value.name || '', slug: form.value.slug || '', icon: form.value.icon || '' } as any;
-        if (!payload.slug && payload.name) payload.slug = slugify(payload.name);
-
+        const payload = { name: form.value.name || '', icon: form.value.icon || '' } as any;        
         if (form.value.id) {
             const res = await fetch(route('facilities.update', { facility: form.value.id }), {
                 method: 'PUT',

@@ -151,6 +151,7 @@ const form = useForm({
     categories: [] as number[],
     facilities: [] as number[],
     tags: [] as number[],
+    new_tags: [] as string[],
     images: [] as ImageDestination[],
     detail: {
         description: '',
@@ -352,6 +353,7 @@ function openCreate() {
     updateDistricts();
     nextTick(() => {
         getDistricts();
+        fetchTags();
     });
     selected.value = null;
     images.value = [];
@@ -362,6 +364,7 @@ function openCreate() {
     form.categories = [];
     form.facilities = [];
     form.tags = [];
+    form.new_tags = [];
     form.detail = {
         description: '',
         address: '',
@@ -378,12 +381,15 @@ function openCreate() {
 
 async function openEdit(row: DestinationRow) {
     getDistricts();
+    await fetchTags();
 
     selected.value = row;
     form.id = row.id;
     form.name = row.name;
     form.slug = row.slug;
     await fetchDestinationDetail(row.id);
+    // clear any previously added new tags for a fresh edit session
+    form.new_tags = [];
     isEditOpen.value = true;
 }
 
@@ -396,15 +402,14 @@ async function saveDestination() {
             formData.append('slug', form.slug);
             formData.append('name', form.name);
 
-            form.categories.forEach((id) =>
-                formData.append('categories[]', id.toString()),
-            );
-            form.facilities.forEach((id) =>
-                formData.append('facilities[]', id.toString()),
-            );
-            form.tags.forEach((id) =>
-                formData.append('tags[]', id.toString()),
-            );
+            form.categories.forEach((id) => formData.append('categories[]', id.toString()));
+            form.facilities.forEach((id) => formData.append('facilities[]', id.toString()));
+            // unify: send both selected ids and new tag names into tags[]
+            const combinedTags = [
+                ...(form.tags || []).map((id) => id.toString()),
+                ...((form.new_tags || []) as string[]),
+            ];
+            combinedTags.forEach((val) => formData.append('tags[]', val));
 
             formData.append('detail', JSON.stringify(form.detail));
             formData.append('open_hours', JSON.stringify(form.open_hours));
@@ -435,6 +440,7 @@ async function saveDestination() {
 
             pendingImages.value = [];
             isEditOpen.value = false;
+            await fetchTags();
             router.reload({ only: ['destinations'] });
         } else {
             const formData = new FormData();
@@ -442,14 +448,16 @@ async function saveDestination() {
             formData.append('name', form.name);
             formData.append('slug', form.slug);
 
-            form.categories.forEach((id) =>
-                formData.append('categories[]', id.toString()),
-            );
-            form.facilities.forEach((id) =>
-                formData.append('facilities[]', id.toString()),
-            );
-            form.tags.forEach((id) =>
-                formData.append('tags[]', id.toString()),
+            form.categories.forEach((id) => formData.append('categories[]', id.toString()));
+            form.facilities.forEach((id) => formData.append('facilities[]', id.toString()));
+            // unify: send both selected ids and new tag names into tags[]
+            const combinedTags = [
+                ...(form.tags || []).map((id) => id.toString()),
+                ...((form.new_tags || []) as string[]),
+            ];
+            combinedTags.forEach((val) => formData.append('tags[]', val));
+            form.new_tags.forEach((name) =>
+                formData.append('new_tags[]', name),
             );
 
             formData.append('detail', JSON.stringify(form.detail));
@@ -481,6 +489,7 @@ async function saveDestination() {
 
             pendingImages.value = [];
             isEditOpen.value = false;
+            await fetchTags();
             router.reload({ only: ['destinations'] });
         }
     } catch (e) {
@@ -699,6 +708,7 @@ function updateFormFromDialog(v: any) {
     if (Array.isArray(v?.categories)) form.categories = v.categories;
     if (Array.isArray(v?.facilities)) form.facilities = v.facilities;
     if (Array.isArray(v?.tags)) form.tags = v.tags;
+    if (Array.isArray(v?.new_tags)) form.new_tags = v.new_tags;
     if (Array.isArray(v?.open_hours)) form.open_hours = v.open_hours;
     if (v?.detail) form.detail = v.detail;
 }
